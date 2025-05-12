@@ -5,8 +5,33 @@ void Main()
 	//VisAlledata(new StyreWebExport().LesData("1"));
 	//VisAlledata(new ExcelExport().LesData());
 	//VisAlledata(new HavneWebExport().LesData());
+
+	//VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+	VisArealForskjeller(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+}
+
+void VisArealForskjeller(HavneData havn1, HavneData havn2)
+{
+	var plasser1 = havn1.GetAllePlasser();
+	var plasser2 = havn2.GetAllePlasser();
 	
-	VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+	Console.WriteLine($"Båtplass areal endringer fra {havn1.Navn} til {havn2.Navn}:\n");
+
+	foreach (var plass1 in plasser1)
+	{
+		var plass2 = havn2.GetBatPlass(plass1.PlassId);
+		if (plass2 != null)
+		{
+			if (plass2.BatBredde != plass1.BatBredde || plass2.BatLengde != plass1.BatLengde)
+			{
+				Console.WriteLine($"{plass1.PlassId}: BxL ({plass1.BatBredde},{plass1.BatLengde}) - ({plass2.BatBredde},{plass2.BatLengde})");
+			}
+		}
+		else
+		{
+			Console.WriteLine($"{plass1.PlassId} mangler i {havn2.Navn}");
+		}
+	}
 }
 
 void VisEierEndringer(HavneData havn1, HavneData havn2)
