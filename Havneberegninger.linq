@@ -7,7 +7,24 @@ void Main()
 	//VisAlledata(new HavneWebExport().LesData());
 
 	//VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
-	VisArealForskjeller(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+	//VisArealForskjeller(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+	VisVaktFritak(new HavneWebExport().LesData());
+}
+
+void VisVaktFritak(HavneData havneData)
+{
+	Console.WriteLine("Vaktfritak i 2024:\n");
+	int antall = 0;
+	foreach (var plass in havneData.GetAllePlasser())
+	{
+		if ((plass.Eier != null || plass.Leier != null) && plass.Vaktfritak)
+		{
+			antall++;
+			Console.WriteLine($"{plass.PlassId}: {plass.Leier ?? plass.Eier}");
+		}
+	}
+
+	Console.WriteLine($"\nTotalt {antall} vaktfritak");
 }
 
 void VisArealForskjeller(HavneData havn1, HavneData havn2)
@@ -158,6 +175,7 @@ public class BatPlass
 	public int LysApning { get; set; }
 	public int Innskudd { get; set; }
 	public bool UngdomsPlass { get;set; }
+	public bool Vaktfritak { get; set; }
 }
 
 public abstract class HavneData
@@ -497,6 +515,7 @@ public class HavneWebExport : HavneData
 					var innskudd = fields[9];
 					var breddeMeter = fields[4];
 					var lengdeMeter = fields[5];
+					var vaktFritak = fields[11] == "on";
 					int breddeCm = 0;
 					int lengdeCm = 0;
 					int innskuddKr = 0;
@@ -522,7 +541,8 @@ public class HavneWebExport : HavneData
 						Innskudd = innskuddKr,
 						Leier = leier,
 						BatBredde = breddeCm,
-						BatLengde = lengdeCm
+						BatLengde = lengdeCm,
+						Vaktfritak = vaktFritak
 					};
 				}
 			}
