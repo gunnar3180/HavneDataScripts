@@ -7,8 +7,10 @@ void Main()
 	//VisAlledata(new HavneWebExport().LesData());
 
 	//VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
-	//VisArealForskjeller(new HavneWebExport().LesData(), new StyreWebExport().LesData());
-	VisVaktFritak(new HavneWebExport().LesData());
+	//VisEierEndringer(new ExcelExport().LesData(), new StyreWebExport().LesData());
+	new List<int>{1, 2, 3, 5, 6}.ForEach(x => VisArealForskjeller(new HavneWebExport().LesData(x.ToString()), new StyreWebExport().LesData(x.ToString())));
+	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
+	//VisVaktFritak(new HavneWebExport().LesData());
 }
 
 void VisVaktFritak(HavneData havneData)
@@ -32,16 +34,36 @@ void VisArealForskjeller(HavneData havn1, HavneData havn2)
 	var plasser1 = havn1.GetAllePlasser();
 	var plasser2 = havn2.GetAllePlasser();
 	
-	Console.WriteLine($"Båtplass areal endringer fra {havn1.Navn} til {havn2.Navn}:\n");
+	if (havn1.PlassPrefix != null)
+	{
+		Console.WriteLine($"\nBåtplasser som starter med {havn1.PlassPrefix}:");
+	}
+	else
+	{
+		Console.WriteLine("\nAlle båtplasser:");
+	}
+	
+	Console.WriteLine($"Båtplass areal endringer fra {havn1.Navn} til {havn2.Navn} (for plasser med samme eier):\n");
 
+	Console.WriteLine($"Plass Bruker                   {havn1.Navn}      -  {havn2.Navn}");
+	Console.WriteLine($"----------------------------------------------------------------");
 	foreach (var plass1 in plasser1)
 	{
 		var plass2 = havn2.GetBatPlass(plass1.PlassId);
 		if (plass2 != null)
 		{
-			if (plass2.BatBredde != plass1.BatBredde || plass2.BatLengde != plass1.BatLengde)
+			var bruker1 = plass1.Leier ?? plass1.Eier;
+			var bruker2 = plass2.Leier ?? plass2.Eier;
+			if (bruker1 == bruker2 && bruker1 != null)
 			{
-				Console.WriteLine($"{plass1.PlassId}: BxL ({plass1.BatBredde},{plass1.BatLengde}) - ({plass2.BatBredde},{plass2.BatLengde})");
+				if (plass1.BatBredde.Ulik(plass2.BatBredde) || plass1.BatLengde.Ulik(plass2.BatLengde))
+				{
+					var bredde1 = ((double)plass1.BatBredde / 100).ToString("0.00");
+					var lengde1 = ((double)plass1.BatLengde / 100).ToString("0.00");
+					var bredde2 = ((double)plass2.BatBredde / 100).ToString("0.00");
+					var lengde2 = ((double)plass2.BatLengde / 100).ToString("0.00");
+					Console.WriteLine($"\n{plass1.PlassId}: {bruker1,-20}BxL ({bredde1} x {lengde1}) - ({bredde2} x {lengde2}) - {plass1.batType}");
+				}
 			}
 		}
 		else
@@ -72,7 +94,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 				tapere.Add((taper, plass1.PlassId));
 				vinnere.Add((vinner, plass2.PlassId));
 				
-				//Console.WriteLine($"{plass1.PlassId}: Eier fra {taper} til {vinner}");
+				Console.WriteLine($"{plass1.PlassId}: Eier fra {taper} til {vinner}");
 			}
 		}
 		else
@@ -176,6 +198,7 @@ public class BatPlass
 	public int Innskudd { get; set; }
 	public bool UngdomsPlass { get;set; }
 	public bool Vaktfritak { get; set; }
+	public string batType { get; set; }
 }
 
 public abstract class HavneData
@@ -516,6 +539,7 @@ public class HavneWebExport : HavneData
 					var breddeMeter = fields[4];
 					var lengdeMeter = fields[5];
 					var vaktFritak = fields[11] == "on";
+					var batType = fields[17];
 					int breddeCm = 0;
 					int lengdeCm = 0;
 					int innskuddKr = 0;
@@ -542,12 +566,22 @@ public class HavneWebExport : HavneData
 						Leier = leier,
 						BatBredde = breddeCm,
 						BatLengde = lengdeCm,
-						Vaktfritak = vaktFritak
+						Vaktfritak = vaktFritak,
+						batType = batType
 					};
 				}
 			}
 		}
 
 		return this;
+	}
+}
+
+public static class Extensions
+{
+	public static bool Ulik(this int measure1, int measure2)
+	{
+		var diff = measure1 - measure2;
+		return diff > 5 || diff < -5;
 	}
 }
