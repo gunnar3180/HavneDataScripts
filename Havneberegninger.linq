@@ -8,9 +8,23 @@ void Main()
 
 	//VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
 	//VisEierEndringer(new ExcelExport().LesData(), new StyreWebExport().LesData());
-	new List<int>{1, 2, 3, 5, 6}.ForEach(x => VisArealForskjeller(new HavneWebExport().LesData(x.ToString()), new StyreWebExport().LesData(x.ToString())));
+	//new List<int>{1, 2, 3, 5, 6}.ForEach(x => VisArealForskjeller(new HavneWebExport().LesData(x.ToString()), new StyreWebExport().LesData(x.ToString())));
 	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
 	//VisVaktFritak(new HavneWebExport().LesData());
+	BeregnBatplassAvgifter(new StyreWebExport().LesData());
+}
+
+void BeregnBatplassAvgifter(HavneData havneData)
+{
+	int totalFakturering = 0;
+	foreach (var plass in havneData.GetAllePlasser().Except(havneData.GetLedigePlasser()))
+	{
+		var batplassAvgift = plass.BeregnBatplassAvgift();
+		totalFakturering += batplassAvgift;
+		Console.WriteLine($"{plass.PlassId}: {(plass.Leier ?? plass.Eier),-30} (BxL: {plass.BatBredde}x{plass.BatLengde}) kr. {batplassAvgift:n}");
+	}
+
+	Console.WriteLine($"Total fakturering av båtplassavgifter i 2025: kr. {totalFakturering:n}");
 }
 
 void VisVaktFritak(HavneData havneData)
@@ -24,7 +38,7 @@ void VisVaktFritak(HavneData havneData)
 			antall++;
 			Console.WriteLine($"{plass.PlassId}: {plass.Leier ?? plass.Eier}");
 		}
-	}
+	} 
 
 	Console.WriteLine($"\nTotalt {antall} vaktfritak");
 }
@@ -199,6 +213,45 @@ public class BatPlass
 	public bool UngdomsPlass { get;set; }
 	public bool Vaktfritak { get; set; }
 	public string batType { get; set; }
+
+	public int BeregnBatplassAvgift()
+	{
+		if (UngdomsPlass)
+		{
+			return 1000;
+		}
+		
+		double bredde = (double)BatBredde / 100;
+		double lengde = (double)BatLengde / 100;
+		int beregnetAvgift = (int)Math.Round(bredde * lengde * PrisFaktor(lengde));
+		if (beregnetAvgift < 2500)
+		{
+			beregnetAvgift = 2500;
+		}
+
+		var leiePlass = Leier != null;
+		return beregnetAvgift + (leiePlass ? LeieTillegg(lengde) : 0);
+	}
+
+	int PrisFaktor(double lengde)
+	{
+		return lengde <= 7.2 ? 160 : (lengde >= 9.2 ? 200 : 180);
+	}
+
+	int LeieTillegg(double lengde)
+	{
+		switch (lengde)
+		{
+			case double len when (len <= 7.0):
+				return 1900;
+			case double len when (len > 7.0 && len <= 8.7):
+				return 2000;
+			case double len when (len > 8.7 && len <= 9.1):
+				return 3000;
+			default:
+				return 4000;
+		}
+	}
 }
 
 public abstract class HavneData
@@ -539,7 +592,7 @@ public class HavneWebExport : HavneData
 					var breddeMeter = fields[4];
 					var lengdeMeter = fields[5];
 					var vaktFritak = fields[11] == "on";
-					var batType = fields[17];
+					var batType = leier != string.Empty ? fields[24] : fields[17];
 					int breddeCm = 0;
 					int lengdeCm = 0;
 					int innskuddKr = 0;
