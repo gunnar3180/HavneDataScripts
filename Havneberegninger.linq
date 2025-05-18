@@ -2,7 +2,7 @@
 
 void Main()
 {
-	//VisAlledata(new StyreWebExport().LesData("1"));
+	VisAlledata(new StyreWebExport().LesData());
 	//VisAlledata(new ExcelExport().LesData());
 	//VisAlledata(new HavneWebExport().LesData());
 
@@ -11,7 +11,7 @@ void Main()
 	//new List<int>{1, 2, 3, 5, 6}.ForEach(x => VisArealForskjeller(new HavneWebExport().LesData(x.ToString()), new StyreWebExport().LesData(x.ToString())));
 	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
 	//VisVaktFritak(new HavneWebExport().LesData());
-	BeregnBatplassAvgifter(new StyreWebExport().LesData());
+	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
 }
 
 void BeregnBatplassAvgifter(HavneData havneData)
@@ -195,9 +195,30 @@ void VisAlledata(HavneData dataSet)
 	}
 
 	Console.WriteLine($"\n{ledigeplasser.Count} ledige plasser");
+	var lysListe = new List<(string, string)>();
+	
 	foreach (var plass in ledigeplasser)
 	{
-		Console.WriteLine($"{plass.PlassId}");
+		Console.Write($"{plass.PlassId}");
+		int lysApning = plass.LysApning;
+		if (lysApning > 0)
+		{
+			var lysApningMeter = ((double)lysApning / 100).ToString("0.00");
+			Console.WriteLine($": {lysApningMeter} m");
+			lysListe.Add((plass.PlassId, lysApningMeter));
+		}
+		else
+		{
+			Console.WriteLine();
+		}
+	}
+	
+	var sortert = lysListe.OrderBy(l => l.Item2);
+	
+	Console.WriteLine("\nLedige plasser sortert på lysåpning:");
+	foreach (var plass in sortert)
+	{
+		Console.WriteLine($"{plass.Item1}: {plass.Item2} m");
 	}
 }
 
@@ -412,6 +433,8 @@ public class StyreWebExport : HavneData
 		CopyNewerFile(@"C:\Users\solvi\Downloads\Marina.csv", @"C:\MyLocal\Solviken\FraStyreweb");
 		CopyNewerFile(@"C:\Users\solvi\Downloads\Fremleie_historie.csv", @"C:\MyLocal\Solviken\FraStyreweb");
 
+		var oppmaling = new LysApninger().Read();
+		
 		using (var reader = new StreamReader(swMarinaFil, Encoding.GetEncoding("UTF-8")))
 		{
 			reader.ReadLine();      // Skip header
@@ -449,7 +472,8 @@ public class StyreWebExport : HavneData
 					Eier = eier,
 					BatBredde = breddeCm,
 					BatLengde = lengdeCm,
-					UngdomsPlass = ungdomsPlass
+					UngdomsPlass = ungdomsPlass,
+					LysApning = oppmaling.GetLysApning(plassId)
 				};
 			}
 		}
@@ -627,6 +651,53 @@ public class HavneWebExport : HavneData
 		}
 
 		return this;
+	}
+}
+
+public class LysApninger
+{
+	private string lysApningFil;
+	private Dictionary<string, int> BatPlasser { get; set; }
+
+	public LysApninger()
+	{
+		var workFolder = @"C:\Users\solvi\OneDrive\Solviken\2025\Havnedatabasen";
+		lysApningFil = Path.Combine(workFolder, "LysApninger.csv");
+		BatPlasser = new Dictionary<string, int>();
+	}
+
+	public LysApninger Read()
+	{
+		using (var stream = new FileStream(lysApningFil, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+		{
+			using (var reader = new StreamReader(stream, Encoding.GetEncoding("ISO-8859-1")))
+			{
+				reader.ReadLine();      // Skip header
+				string line;
+				while ((line = reader.ReadLine()) != null)
+				{
+					var fields = line.Split(';');
+					var plassId = fields[0];
+					var lysApningString = fields[1];
+					if (double.TryParse(lysApningString, out var lysApning))
+					{
+						BatPlasser[plassId] = (int)Math.Round(lysApning * 100);	// Unit = cm
+					}
+				}
+			}
+		}
+		
+		return this;
+	}
+	
+	public int GetLysApning(string plassId)
+	{
+		if (BatPlasser.TryGetValue(plassId, out var lysApning))
+		{
+			return lysApning;
+		}
+		
+		return -1;
 	}
 }
 
