@@ -2,7 +2,7 @@
 
 void Main()
 {
-	VisAlledata(new StyreWebExport().LesData());
+	//VisAlledata(new StyreWebExport().LesData());
 	//VisAlledata(new ExcelExport().LesData());
 	//VisAlledata(new HavneWebExport().LesData());
 
@@ -12,6 +12,40 @@ void Main()
 	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
 	//VisVaktFritak(new HavneWebExport().LesData());
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
+	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
+	VisLedigePlasser(new StyreWebExport().LesData());
+}
+
+void VisLedigePlasser(HavneData havn)
+{
+	var ledige = havn.GetLedigePlasser();
+	var sortert = ledige.OrderBy(l => l.LysApning);
+	foreach (var plass in sortert)
+	{
+		var bredde = plass.LysApning > 0 ? (double)plass.LysApning / 100 : 0;
+		Console.WriteLine($"{plass.PlassId}: {bredde} m");
+	}
+}
+
+void VisAlleMedVaktplikt(HavneData styreWeb, HavneData hwExport)
+{
+	// Lag liste for import til gruppering i styreweb
+	var plasserIBruk = styreWeb.GetAllePlasser().Except(styreWeb.GetLedigePlasser());
+	var pliktigePlasser = plasserIBruk.Except(styreWeb.GetUngdomsPlasser());
+	var fritak2024 = hwExport.GetAllePlasser().Where(p => p.Vaktfritak == true);
+	Console.WriteLine($"Visningsnavn");
+	foreach (var plass in pliktigePlasser)
+	{
+		Console.Write($"{plass.Leier ?? plass.Eier};{plass.PlassId}");
+		if (fritak2024.Any(f => f.PlassId == plass.PlassId))
+		{
+			Console.WriteLine($";Fritak 2024");
+		}
+		else
+		{
+			Console.WriteLine();
+		}
+	}
 }
 
 void BeregnBatplassAvgifter(HavneData havneData)
@@ -449,6 +483,11 @@ public class StyreWebExport : HavneData
 				var lengdeMeter = fields[4];
 				int breddeCm = 0;
 				int lengdeCm = 0;
+				
+				if (plassType == "Kan ikke brukes")
+				{
+					continue;
+				}
 				
 				if (eier == "Solviken Båtforening" || eier == "" || eier == "Ledig")
 				{
