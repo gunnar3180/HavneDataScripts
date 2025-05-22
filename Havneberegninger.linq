@@ -266,6 +266,7 @@ public class BatPlass
 	public int LysApning { get; set; }
 	public int Innskudd { get; set; }
 	public bool UngdomsPlass { get;set; }
+	public bool Reservert { get; set; }
 	public bool Vaktfritak { get; set; }
 	public string batType { get; set; }
 
@@ -365,15 +366,21 @@ public abstract class HavneData
 		return BatPlasser.Values.Where(v => v.UngdomsPlass).ToList();
 	}
 
+	public List<BatPlass> GetReservertePlasser()
+	{
+		return BatPlasser.Values.Where(v => v.Reservert).ToList();
+	}
+
 	public List<BatPlass> GetLedigePlasser()
 	{
 		return BatPlasser.Values
 		.Except(GetAndelsPlasser())
 		.Except(GetSesongPlasser())
 		.Except(GetUngdomsPlasser())
+		.Except(GetReservertePlasser())
 		.ToList();
 	}
-	
+
 	protected string NavnExcel2StyreWeb(string navn)
 	{
 		switch (navn)
@@ -505,6 +512,8 @@ public class StyreWebExport : HavneData
 				}
 
 				var ungdomsPlass = (plassType == "Ungdomsplass");
+				var reservert = (plassType == "Reservert");
+				
 				BatPlasser[plassId] = new BatPlass
 				{
 					PlassId = plassId,
@@ -512,6 +521,7 @@ public class StyreWebExport : HavneData
 					BatBredde = breddeCm,
 					BatLengde = lengdeCm,
 					UngdomsPlass = ungdomsPlass,
+					Reservert = reservert,
 					LysApning = oppmaling.GetLysApning(plassId)
 				};
 			}
@@ -528,20 +538,16 @@ public class StyreWebExport : HavneData
 				var tilDato = fields[3];
 				var leier = fields[4];
 				
-				if (leier == "")
+				if (leier != "")
 				{
-					leier = null;
-				}
-
-				if (BatPlasser.TryGetValue(plassId, out var batPlass))
-				{
-					if (DateTime.TryParse(tilDato, out var sluttDato))
+					if (BatPlasser.TryGetValue(plassId, out var batPlass))
 					{
-						batPlass.Leier = sluttDato > DateTime.Now ? leier : null;
-					}
-					else
-					{
-						leier = null;
+						if (DateTime.TryParse(tilDato, out var sluttDato) &&
+							sluttDato > DateTime.Now)
+						{
+							batPlass.Leier = leier;
+							//Console.WriteLine($"{plassId} er leid av {leier}");
+						}
 					}
 				}
 			}
