@@ -13,7 +13,8 @@ void Main()
 	//VisVaktFritak(new HavneWebExport().LesData());
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
 	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
-	VisLedigePlasser(new StyreWebExport().LesData());
+	//VisLedigePlasser(new StyreWebExport().LesData());
+	var styreWeb = new StyreWebExport().LesData();
 }
 
 void VisLedigePlasser(HavneData havn)
@@ -30,8 +31,7 @@ void VisLedigePlasser(HavneData havn)
 void VisAlleMedVaktplikt(HavneData styreWeb, HavneData hwExport)
 {
 	// Lag liste for import til gruppering i styreweb
-	var plasserIBruk = styreWeb.GetAllePlasser().Except(styreWeb.GetLedigePlasser());
-	var pliktigePlasser = plasserIBruk.Except(styreWeb.GetUngdomsPlasser());
+	var pliktigePlasser = styreWeb.GetAndelsPlasser().Concat(styreWeb.GetSesongPlasser());
 	var fritak2024 = hwExport.GetAllePlasser().Where(p => p.Vaktfritak == true);
 	Console.WriteLine($"Visningsnavn");
 	foreach (var plass in pliktigePlasser)
@@ -456,6 +456,8 @@ public class StyreWebExport : HavneData
 {
 	private string swMarinaFil;
 	private string swFramleieFil;
+	private string swGruppeVaktpliktFil;
+	private string swExportFolder;
 
 	protected override SortedDictionary<string, BatPlass> BatPlasser { get; set; }
 	public override string Navn { get => "StyreWeb"; }
@@ -463,16 +465,20 @@ public class StyreWebExport : HavneData
 	public StyreWebExport()
 	{
 		var workFolder = @"C:\MyLocal\Solviken";
-		var swExportFolder = Path.Combine(workFolder, "FraStyreweb");
+		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
 		swMarinaFil = Path.Combine(swExportFolder, "Marina.csv");
 		swFramleieFil = Path.Combine(swExportFolder, "Fremleie_historie.csv");
+		swGruppeVaktpliktFil = Path.Combine(swExportFolder, "GruppeVaktplikt-2025.csv");
+		
 		BatPlasser = new SortedDictionary<string, BatPlass>();
 	}
 
 	protected override HavneData Read()
 	{
-		CopyNewerFile(@"C:\Users\solvi\Downloads\Marina.csv", @"C:\MyLocal\Solviken\FraStyreweb");
-		CopyNewerFile(@"C:\Users\solvi\Downloads\Fremleie_historie.csv", @"C:\MyLocal\Solviken\FraStyreweb");
+		CopyNewerFile(@"C:\Users\solvi\Downloads\Marina.csv", swExportFolder);
+		CopyNewerFile(@"C:\Users\solvi\Downloads\Fremleie_historie.csv", swExportFolder);
+		CopyNewerFile(@"C:\Users\solvi\Downloads\GruppeVaktplikt-2025.xlsx", swExportFolder);
+		ConvertFromXlsx2Csv(@"C:\MyLocal\Solviken\FraStyreweb\GruppeVaktplikt-2025.xlsx");
 
 		var oppmaling = new LysApninger().Read();
 		
@@ -552,8 +558,52 @@ public class StyreWebExport : HavneData
 				}
 			}
 		}
-		
+
+		var vaktpliktige = new List<string>();
+		using (var reader = new StreamReader(swGruppeVaktpliktFil, Encoding.GetEncoding("UTF-8")))
+		{
+			reader.ReadLine();      // Skip header
+			reader.ReadLine();      // Skip header
+			reader.ReadLine();      // Skip header
+			string line;
+			while ((line = reader.ReadLine()) != null)
+			{
+				var fields = line.Split('\t');
+				if (fields[0] == string.Empty)
+				{
+					break;
+				}
+
+				var navn = $"{fields[1]} {fields[0]}";
+				vaktpliktige.Add(navn);
+			}
+
+			var pliktigePlasser = GetAndelsPlasser().Concat(GetSesongPlasser());
+			var fritak = pliktigePlasser.Where(p => !vaktpliktige.Any(v => (p.Leier??p.Eier) == v));
+			foreach (var plass in fritak)
+			{
+				plass.Vaktfritak = true;
+			}
+		}
+
 		return this;
+	}
+
+	private void ConvertFromXlsx2Csv(string excelFile)
+	{
+		var folder = Path.GetDirectoryName(excelFile);
+		var csvFile = Path.Combine(folder, Path.GetFileNameWithoutExtension(excelFile)) + ".csv";
+
+		if (File.GetLastWriteTime(excelFile) > File.GetLastWriteTime(csvFile))
+		{
+			string scriptName = @"C:\MyLocal\Solviken\xlsx2csv.vbs"; // full path to script
+			ProcessStartInfo ps = new ProcessStartInfo();
+			ps.FileName = "cscript.exe";
+			ps.Arguments = $"{scriptName} {excelFile} {csvFile}";
+			var process = Process.Start(ps);
+			process.WaitForExit();
+			process.Close();
+		}
 	}
 
 	private void CopyNewerFile(string source, string destination)
