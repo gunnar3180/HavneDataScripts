@@ -14,7 +14,8 @@ void Main()
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
 	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
-	VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
+	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
+	var havn = new HavneWebExport().LesData();
 }
 
 void VisAlleMedVaktfritakOgPlasser(HavneData havn)
@@ -23,7 +24,7 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn)
 	var sortert = fritaksPlasser.OrderBy(p => p.Leier??p.Eier);
 	var gruppert = sortert.GroupBy(s => s.Leier??s.Eier);
 	var sortertPaArsak = new Dictionary<string, List<IGrouping<string, BatPlass>>>();		// Årsak, brukere
-	Console.WriteLine("Medlemmer med vaktfritak:\n");
+	Console.WriteLine("Medlemmer med vaktfritak:");
 	int antallFritak = 0;
 	foreach (var bruker in gruppert)
 	{
@@ -39,29 +40,28 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn)
 			brukere.Add(bruker);
 			sortertPaArsak[vaktFritak] = brukere;
 		}
-		
-		//Console.Write($"{bruker.Key,-28} - {forstePlass.Vaktfritak,-20}: {forstePlass.PlassId}");
-		//antallFritak++;
-		//foreach (var plass in bruker.Skip(1))
-		//{
-		//	Console.Write($", {plass.PlassId}");
-		//	antallFritak++;
-		//}
-		//Console.WriteLine();
 	}
 
 	foreach (var arsak in sortertPaArsak)
 	{
-		Console.WriteLine($"\n{arsak.Key}:");
+		Console.WriteLine($"\n--- {arsak.Key} ---");
+		int arsakPlasser = 0;
 		foreach (var bruker in arsak.Value)
 		{
-			Console.Write($"{bruker.Key}");
+			Console.Write($"{bruker.Key,-30}");
+			int plasser = 0;
 			foreach (var plass in bruker)
 			{
-				Console.Write($", {plass.PlassId}");
+				var separator = plasser == 0 ? "" : ", ";
+				Console.Write($"{separator}{plass.PlassId}");
+				plasser++;
+				antallFritak++;
+				arsakPlasser++;
 			}
 			Console.WriteLine();
 		}
+
+		Console.WriteLine($"-Antall fritaksplasser: {arsakPlasser}");
 	}
 	
 	Console.WriteLine($"\nAntall medlemmer med vaktfritak: {gruppert.Count()}, båtplasser: {antallFritak}");
@@ -688,6 +688,7 @@ public class StyreWebExport : HavneData
 			ProcessStartInfo ps = new ProcessStartInfo();
 			ps.FileName = "cscript.exe";
 			ps.Arguments = $"{scriptName} {excelFile} {csvFile}";
+			ps.WindowStyle = ProcessWindowStyle.Hidden;
 			ps.CreateNoWindow = true;
 			var process = Process.Start(ps);
 			process.WaitForExit();
