@@ -14,8 +14,7 @@ void Main()
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
 	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
-	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
-	var havn = new HavneWebExport().LesData();
+	VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
 }
 
 void VisAlleMedVaktfritakOgPlasser(HavneData havn)
