@@ -14,7 +14,40 @@ void Main()
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
 	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
-	VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
+	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
+	SjekkSesongOgUngdom(new StyreWebExport().LesData());
+}
+
+void SjekkSesongOgUngdom(HavneData havn)
+{
+	var sesongOgUngdom = havn.GetSesongPlasser().Concat(havn.GetUngdomsPlasser()).OrderBy(h => h.PlassId);
+	var framleiePlasser = havn.GetAllePlasser().Where(h => h.Leier != null).OrderBy(h => h.PlassId);
+	if (sesongOgUngdom.SequenceEqual(framleiePlasser))
+	{
+		Console.WriteLine("Alle framleieplasser registrert som enten sesong eller ungdomsplass");
+	}
+	else
+	{
+		var feil1 = sesongOgUngdom.Except(framleiePlasser);
+		var feil2 = framleiePlasser.Except(sesongOgUngdom);
+		
+		if (feil1.Count() > 0)
+		{
+			Console.WriteLine("Følgende sesong/ungdom ikke registrert som framleie:");
+			foreach (var feil in feil1)
+			{
+				Console.WriteLine(feil.PlassId);
+			}
+		}
+		if (feil2.Count() > 0)
+		{
+			Console.WriteLine("Følgende framleieplasser ikke registrert som sesong/ungdom:");
+			foreach (var feil in feil2)
+			{
+				Console.WriteLine(feil.PlassId);
+			}
+		}
+	}
 }
 
 void VisAlleMedVaktfritakOgPlasser(HavneData havn)
