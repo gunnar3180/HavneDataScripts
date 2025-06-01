@@ -1,4 +1,7 @@
-<Query Kind="Program" />
+<Query Kind="Program">
+  <Reference>&lt;RuntimeDirectory&gt;\System.Collections.Concurrent.dll</Reference>
+  <Namespace>System.Collections.Concurrent</Namespace>
+</Query>
 
 void Main()
 {
@@ -14,8 +17,50 @@ void Main()
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
 	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
-	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
-	SjekkSesongOgUngdom(new StyreWebExport().LesData());
+	VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
+	//SjekkSesongOgUngdom(new StyreWebExport().LesData());
+	//FinnLeietillegg(new StyreWebExport().LesData());
+}
+
+void FinnLeietillegg(HavneData havn)
+{
+	var leietilleggGrupper = new ConcurrentDictionary<string, List<(string, string)>>();	// Bruker, plassId
+	var sesongPlasser = havn.GetSesongPlasser();
+	foreach (var plass in sesongPlasser)
+	{
+		var gruppe = havn.BeregnInnskudd(plass.PlassId).Item2;
+		var gruppeBrukere = leietilleggGrupper.GetOrAdd(gruppe, a => new List<(string, string)>());
+		gruppeBrukere.Add((plass.Leier, plass.PlassId));
+	}
+	
+	foreach (var gruppe in leietilleggGrupper.OrderBy(g => g.Key))
+	{
+		if (gruppe.Value.Count > 0)
+		{
+			var leietillegg = LeietilleggFraGruppe(gruppe.Key);
+			Console.WriteLine($"\nGruppe {gruppe.Key} ({gruppe.Value.Count} stk, kr. {leietillegg}):");
+			foreach (var bruker in gruppe.Value)
+			{
+				Console.WriteLine($"{bruker.Item1} ({bruker.Item2})");
+			}
+		}
+	}
+}
+
+int LeietilleggFraGruppe(string gruppe)
+{
+	switch (gruppe)
+	{
+		case "A":
+		case "B":
+			return 1900;
+		case "C":
+			return 2000;
+		case "D":
+			return 3000;
+		default:
+			return 4000;
+	}
 }
 
 void SjekkSesongOgUngdom(HavneData havn)
@@ -266,7 +311,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 		if (!tapere.Any(t => t.Item1 == vinner.Item1))
 		{
 			// Fått ny plass uten å gi fra seg en
-			var innskudd = havn2.BeregnInnskudd(vinner.Item2).ToString("n").PadLeft(9);
+			var innskudd = havn2.BeregnInnskudd(vinner.Item2).Item1.ToString("n").PadLeft(9);
 			Console.WriteLine($"{vinner.Item2}: kr. {innskudd} - {vinner.Item1}");
 		}
 	}
@@ -347,7 +392,8 @@ public class BatPlass
 	public int BatLengde { get; set; }
 	public int LysApning { get; set; }
 	public int Innskudd { get; set; }
-	public bool UngdomsPlass { get;set; }
+	public bool SesongPlass { get; set; }
+	public bool UngdomsPlass { get; set; }
 	public bool Reservert { get; set; }
 	public string Vaktfritak { get; set; }
 	public string batType { get; set; }
@@ -440,7 +486,7 @@ public abstract class HavneData
 	
 	public List<BatPlass> GetSesongPlasser()
 	{
-		return BatPlasser.Values.Where(v => v.Leier != null && !v.UngdomsPlass).ToList();
+		return BatPlasser.Values.Where(v => v.SesongPlass).ToList();
 	}
 
 	public List<BatPlass> GetUngdomsPlasser()
@@ -501,7 +547,7 @@ public abstract class HavneData
 		}
 	}
 	
-	public int BeregnInnskudd(string plassId)
+	public (int, string) BeregnInnskudd(string plassId)
 	{
 		var plass = GetBatPlass(plassId);
 		if (plass != null)
@@ -510,27 +556,27 @@ public abstract class HavneData
 			switch (lengde)
 			{
 				case double len when (len <= 5.4):
-					return 7750;
+					return (7750, "A");
 				case double len when (len <= 7.0):
-					return 11100;
+					return (11100, "B");
 				case double len when (len <= 8.7):
-					return 14700;
+					return (14700, "C");
 				case double len when (len <= 9.1):
-					return 19750;
+					return (19750, "D");
 				case double len when (len <= 10.0):
-					return 22500;
+					return (22500, "E");
 				case double len when (len <= 10.6):
-					return 25150;
+					return (25150, "F");
 				case double len when (len <= 11.8):
-					return 27900;
+					return (27900, "G");
 				case double len when (len <= 12.4):
-					return 34500;
+					return (34500, "H");
 				default:
-					return 45500;
+					return (45500, "L");
 			}
 		}
 		
-		return -1;
+		return (-1, "X");
 	}
 }
 
@@ -617,6 +663,7 @@ public class StyreWebExport : HavneData
 					lengdeCm = (int)Math.Round(lengde * 100);
 				}
 
+				var sesongPlass = (plassType == "Sesongplass");
 				var ungdomsPlass = (plassType == "Ungdomsplass");
 				var reservert = (plassType == "Reservert");
 				
@@ -626,6 +673,7 @@ public class StyreWebExport : HavneData
 					Eier = eier,
 					BatBredde = breddeCm,
 					BatLengde = lengdeCm,
+					SesongPlass = sesongPlass,
 					UngdomsPlass = ungdomsPlass,
 					Reservert = reservert,
 					LysApning = oppmaling.GetLysApning(plassId)
@@ -939,3 +987,5 @@ public class VervNavnComparer : IEqualityComparer<(string, string)>
 		return obj.Item1.GetHashCode();
 	}
 }
+
+// Define other methods and classes here
