@@ -5,7 +5,7 @@
 
 void Main()
 {
-	//VisAlledata(new StyreWebExport().LesData());
+	VisAlledata(new StyreWebExport().LesData("1"));
 	//VisAlledata(new ExcelExport().LesData());
 	//VisAlledata(new HavneWebExport().LesData());
 
@@ -17,7 +17,7 @@ void Main()
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
 	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
-	VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
+	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
 	//SjekkSesongOgUngdom(new StyreWebExport().LesData());
 	//FinnLeietillegg(new StyreWebExport().LesData());
 }
@@ -323,7 +323,8 @@ void VisAlledata(HavneData dataSet)
 	var sesongplasser = dataSet.GetSesongPlasser();
 	var ungdomsplasser = dataSet.GetUngdomsPlasser();
 	var ledigeplasser = dataSet.GetLedigePlasser();
-
+	var medlemsRegister = new MedlemsRegister().LesData();
+	
 	Console.Write($"Eksport fra {dataSet.Navn}");
 	if (dataSet.PlassPrefix != null)
 	{
@@ -337,22 +338,21 @@ void VisAlledata(HavneData dataSet)
 	Console.WriteLine($"\n{andelsplasser.Count} andelsplasser");
 	foreach (var plass in andelsplasser)
 	{
-		var bredde = ((double)plass.BatBredde / 100).ToString("0.00");
-		var lengde = ((double)plass.BatLengde / 100).ToString("0.00");
-		Console.WriteLine($"{plass.PlassId}: {plass.Eier}, BxL={bredde}, {lengde}");
+		PrintBatplass(plass, true, medlemsRegister);
 	}
 
 	Console.WriteLine($"\n{sesongplasser.Count} sesongplasser");
 	foreach (var plass in sesongplasser)
 	{
-		var eier = plass.Eier != null ? $" (fra {plass.Eier})" : "";
-		Console.WriteLine($"{plass.PlassId}: {plass.Leier}{eier}");
+		var eier = plass.Eier != null ? $"(fra {plass.Eier})" : null;
+		PrintBatplass(plass, false, medlemsRegister, eier);
 	}
 
 	Console.WriteLine($"\n{ungdomsplasser.Count} ungdomsplasser");
 	foreach (var plass in ungdomsplasser)
 	{
-		Console.WriteLine($"{plass.PlassId}: {plass.Leier}");
+		var tlf = medlemsRegister.Medlemmer[plass.Leier].Tlf;
+		Console.WriteLine($"{plass.PlassId}: {plass.Leier,-25}  {tlf,-13}");
 	}
 
 	Console.WriteLine($"\n{ledigeplasser.Count} ledige plasser");
@@ -380,6 +380,38 @@ void VisAlledata(HavneData dataSet)
 	foreach (var plass in sortert)
 	{
 		Console.WriteLine($"{plass.Item1}: {plass.Item2} m");
+	}
+}
+
+void PrintBatplass(BatPlass plass, bool visEier, MedlemsRegister medlemsRegister, string postfix = null)
+{
+	var bruker = visEier ? plass.Eier : plass.Leier;
+	var bredde = ((double)plass.BatBredde / 100).ToString("0.00");
+	var lengde = ((double)plass.BatLengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
+	var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
+	var eier = TilpassNavn(bruker);
+	var lysApning = plass.LysApning > 0 ? ((double)plass.LysApning / 100).ToString("0.00") : "---";
+	Console.Write($"{plass.PlassId.Substring(0, 4)}: {eier,-25} {tlf,-13} BxL: {bredde} x {lengde}  LÅ: {lysApning}");
+	if (postfix != null)
+	{
+		Console.WriteLine($"  {postfix}");
+	}
+	else
+	{
+		Console.WriteLine();
+	}
+}
+
+string TilpassNavn(string navn)
+{
+	switch (navn)
+	{
+		case "Tore Gulbrandsen Schjelderup":
+			return "Tore G. Schjelderup";
+		case "Bexrud Bil AS Bexrud Bil AS":
+			return "Bexrud Bil AS";
+		default:
+			return navn;
 	}
 }
 
@@ -618,7 +650,7 @@ public class StyreWebExport : HavneData
 	{
 		CopyNewerFile(Path.Combine(downloadFolder, "Marina.csv"), swExportFolder);
 		CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
-		CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
+		//CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
 		
 		foreach (var gruppe in swFritaksGrupper.Append(swGruppeVaktplikt))
 		{
@@ -988,4 +1020,60 @@ public class VervNavnComparer : IEqualityComparer<(string, string)>
 	}
 }
 
-// Define other methods and classes here
+public class Medlem
+{
+	public string Navn { get; set; }
+	public string Tlf { get; set; }
+	public string Epost { get; set; }
+}
+
+public class MedlemsRegister
+{
+	private string swFolder;
+	private string swEksportFil;
+
+	public Dictionary<string, Medlem> Medlemmer { get; }
+	
+	public MedlemsRegister()
+	{
+		swFolder = @"C:\MyLocal\Solviken\FraStyreWeb";
+		swEksportFil = Path.Combine(swFolder, "Standard_Rapport.csv");
+		Medlemmer = new Dictionary<string, Medlem>();
+	}
+	
+	public MedlemsRegister LesData()
+	{
+		var downloadFolder = @"C:\Users\solvi\Downloads";
+		CopyNewerFile(Path.Combine(downloadFolder, "Standard_Rapport.csv"), swFolder);
+		using (var reader = new StreamReader(swEksportFil, Encoding.GetEncoding("UTF-8")))
+		{
+			reader.ReadLine();      // Skip header
+			string line;
+			while ((line = reader.ReadLine()) != null)
+			{
+				var fields = line.Split('\t');
+				if (fields.Length >= 5)
+				{
+					var name = $"{fields[1]} {fields[0]}";
+					var tlf = fields[4];
+					Medlemmer[name] = new Medlem {Navn = name, Tlf = tlf};
+				}
+			}
+		}
+		
+		return this;
+	}
+
+	private void CopyNewerFile(string source, string destination)
+	{
+		var fileName = Path.GetFileName(source);
+		var destinationFile = Path.Combine(destination, fileName);
+
+		if (File.Exists(source))
+		{
+			File.Delete(destinationFile);
+			File.Move(source, destinationFile);
+			Console.WriteLine($"Oppdaterte StyreWeb export fil \"{fileName}\" fra Nedlastinger");
+		}
+	}
+}
