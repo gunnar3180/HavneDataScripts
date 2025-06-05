@@ -5,7 +5,7 @@
 
 void Main()
 {
-	VisAlledata(new StyreWebExport().LesData("1"));
+	VisAlledata(new StyreWebExport().LesData());
 	//VisAlledata(new ExcelExport().LesData());
 	//VisAlledata(new HavneWebExport().LesData());
 
@@ -20,6 +20,21 @@ void Main()
 	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
 	//SjekkSesongOgUngdom(new StyreWebExport().LesData());
 	//FinnLeietillegg(new StyreWebExport().LesData());
+	//SjekkVareVarianter(new StyreWebExport().LesData());
+}
+
+void SjekkVareVarianter(HavneData havn)
+{
+	var plasser = havn.GetAndelsPlasser().Concat(havn.GetSesongPlasser());
+	foreach (var plass in plasser)
+	{
+		var lengde = ((double)plass.BatLengde) / 100;
+		var beregnetVareVariant = VareVariant.Create(lengde);
+		if (plass.vareVariant.Size != beregnetVareVariant.Size)
+		{
+			Console.WriteLine($"{plass.PlassId}: Feil varevariant {plass.vareVariant.Size}, skal være {beregnetVareVariant.Size}");
+		}
+	}
 }
 
 void FinnLeietillegg(HavneData havn)
@@ -178,14 +193,16 @@ void VisAlleMedVaktplikt(HavneData styreWeb, HavneData hwExport)
 void BeregnBatplassAvgifter(HavneData havneData)
 {
 	int totalFakturering = 0;
-	foreach (var plass in havneData.GetAllePlasser().Except(havneData.GetLedigePlasser()))
+	foreach (var plass in havneData.GetAndelsPlasser()
+				.Concat(havneData.GetSesongPlasser()
+				.Concat(havneData.GetUngdomsPlasser())))
 	{
 		var batplassAvgift = plass.BeregnBatplassAvgift();
 		totalFakturering += batplassAvgift;
 		Console.WriteLine($"{plass.PlassId}: {(plass.Leier ?? plass.Eier),-30} (BxL: {plass.BatBredde}x{plass.BatLengde}) kr. {batplassAvgift:n}");
 	}
 
-	Console.WriteLine($"Total fakturering av båtplassavgifter i 2025: kr. {totalFakturering:n}");
+	Console.WriteLine($"\nTotal fakturering av båtplassavgifter i 2025: kr. {totalFakturering:n}");
 }
 
 void VisVaktFritak(HavneData havneData)
@@ -322,7 +339,8 @@ void VisAlledata(HavneData dataSet)
 	var andelsplasser = dataSet.GetAndelsPlasser();
 	var sesongplasser = dataSet.GetSesongPlasser();
 	var ungdomsplasser = dataSet.GetUngdomsPlasser();
-	var ledigeplasser = dataSet.GetLedigePlasser();
+	var tilLeiePlasser = dataSet.GetTilLeiePlasser();
+	var ledigePlasser = dataSet.GetLedigePlasser();
 	var medlemsRegister = new MedlemsRegister().LesData();
 	
 	Console.Write($"Eksport fra {dataSet.Navn}");
@@ -352,13 +370,20 @@ void VisAlledata(HavneData dataSet)
 	foreach (var plass in ungdomsplasser)
 	{
 		var tlf = medlemsRegister.Medlemmer[plass.Leier].Tlf;
-		Console.WriteLine($"{plass.PlassId}: {plass.Leier,-25}  {tlf,-13}");
+		Console.WriteLine($"{plass.PlassId}: {plass.Leier,-25} {tlf,-13}");
 	}
 
-	Console.WriteLine($"\n{ledigeplasser.Count} ledige plasser");
+	// Til leie-plasser
+	Console.WriteLine($"\n{tilLeiePlasser.Count} plasser til leie");
+	foreach (var plass in tilLeiePlasser)
+	{
+		PrintBatplass(plass, true, medlemsRegister);
+	}
+
+	Console.WriteLine($"\n{ledigePlasser.Count} ledige plasser");
 	var lysListe = new List<(string, string)>();
-	
-	foreach (var plass in ledigeplasser)
+
+	foreach (var plass in ledigePlasser)
 	{
 		Console.Write($"{plass.PlassId}");
 		int lysApning = plass.LysApning;
@@ -426,9 +451,11 @@ public class BatPlass
 	public int Innskudd { get; set; }
 	public bool SesongPlass { get; set; }
 	public bool UngdomsPlass { get; set; }
+	public bool TilLeie { get; set; }
 	public bool Reservert { get; set; }
 	public string Vaktfritak { get; set; }
 	public string batType { get; set; }
+	public VareVariant vareVariant { get; set; }
 
 	public int BeregnBatplassAvgift()
 	{
@@ -526,6 +553,11 @@ public abstract class HavneData
 		return BatPlasser.Values.Where(v => v.UngdomsPlass).ToList();
 	}
 
+	public List<BatPlass> GetTilLeiePlasser()
+	{
+		return BatPlasser.Values.Where(v => v.TilLeie).ToList();
+	}
+	
 	public List<BatPlass> GetReservertePlasser()
 	{
 		return BatPlasser.Values.Where(v => v.Reservert).ToList();
@@ -616,6 +648,7 @@ public class StyreWebExport : HavneData
 {
 	private string downloadFolder;
 	private string swMarinaFil;
+	private string swMarinaDetaljertFil;
 	private string swFramleieFil;
 	private string swGruppeVaktplikt;
 	private string swExportFolder;
@@ -630,6 +663,7 @@ public class StyreWebExport : HavneData
 		var workFolder = @"C:\MyLocal\Solviken";
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
 		swMarinaFil = Path.Combine(swExportFolder, "Marina.csv");
+		swMarinaDetaljertFil = Path.Combine(swExportFolder, "Marina_-_Detaljert.csv");
 		swFramleieFil = Path.Combine(swExportFolder, "Fremleie_historie.csv");
 		swGruppeVaktplikt = "Vaktplikt-2025";
 		swFritaksGrupper = new List<string>
@@ -649,8 +683,8 @@ public class StyreWebExport : HavneData
 	protected override HavneData Read()
 	{
 		CopyNewerFile(Path.Combine(downloadFolder, "Marina.csv"), swExportFolder);
+		CopyNewerFile(Path.Combine(downloadFolder, "Marina_-_Detaljert.csv"), swExportFolder);
 		CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
-		//CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
 		
 		foreach (var gruppe in swFritaksGrupper.Append(swGruppeVaktplikt))
 		{
@@ -698,6 +732,7 @@ public class StyreWebExport : HavneData
 				var sesongPlass = (plassType == "Sesongplass");
 				var ungdomsPlass = (plassType == "Ungdomsplass");
 				var reservert = (plassType == "Reservert");
+				var tilLeie = (plassType == "Til leie");
 				
 				BatPlasser[plassId] = new BatPlass
 				{
@@ -707,12 +742,35 @@ public class StyreWebExport : HavneData
 					BatLengde = lengdeCm,
 					SesongPlass = sesongPlass,
 					UngdomsPlass = ungdomsPlass,
+					TilLeie = tilLeie,
 					Reservert = reservert,
 					LysApning = oppmaling.GetLysApning(plassId)
 				};
 			}
 		}
-		
+
+		if (File.Exists(swMarinaDetaljertFil))
+		{
+			using (var reader = new StreamReader(swMarinaDetaljertFil, Encoding.GetEncoding("UTF-8")))
+			{
+				reader.ReadLine();      // Skip header
+				string line;
+				while ((line = reader.ReadLine()) != null && !line.StartsWith("#"))
+				{
+					var fields = line.Split('\t');
+					var plassId = fields[1];
+					if (BatPlasser.TryGetValue(plassId, out var plass))
+					{
+						plass.vareVariant = VareVariant.Create(fields[19]);
+					}
+					else
+					{
+						//Console.WriteLine($"*** {plassId} mangler i marinafil");
+					}
+				}
+			}
+		}
+
 		using (var reader = new StreamReader(swFramleieFil, Encoding.GetEncoding("UTF-8")))
 		{
 			reader.ReadLine();      // Skip header
@@ -1025,6 +1083,49 @@ public class Medlem
 	public string Navn { get; set; }
 	public string Tlf { get; set; }
 	public string Epost { get; set; }
+}
+
+public class VareVariant
+{
+	public enum Length
+	{
+		Undefined,
+		Small,
+		Medium,
+		Big
+	}
+	
+	public Length Size { get; set; }
+	
+	public static VareVariant Create(double length)
+	{
+		if (length < 7.3)
+		{
+			return new VareVariant { Size = Length.Small };
+		}
+		
+		if (length < 9.2)
+		{
+			return new VareVariant { Size = Length.Medium };
+		}
+		
+		return new VareVariant { Size = Length.Big };
+	}
+	
+	public static VareVariant Create(string variantText)
+	{
+		switch (variantText)
+		{
+			case "> 7,2 m båtlengde":
+				return new VareVariant { Size = Length.Small };
+			case "7,3m-9,1m båtlengde":
+				return new VareVariant { Size = Length.Medium };
+			case "9,2 < båtlengde":
+				return new VareVariant { Size = Length.Big };
+			default:
+				return new VareVariant { Size = Length.Undefined };
+		}
+	}
 }
 
 public class MedlemsRegister
