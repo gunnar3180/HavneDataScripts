@@ -5,7 +5,7 @@
 
 void Main()
 {
-	VisAlledata(new StyreWebExport().LesData());
+	//VisAlledata(new StyreWebExport().LesData());
 	//VisAlledata(new ExcelExport().LesData());
 	//VisAlledata(new HavneWebExport().LesData());
 
@@ -21,6 +21,31 @@ void Main()
 	//SjekkSesongOgUngdom(new StyreWebExport().LesData());
 	//FinnLeietillegg(new StyreWebExport().LesData());
 	//SjekkVareVarianter(new StyreWebExport().LesData());
+	FinnPlasserUnder2500(new StyreWebExport().LesData());
+}
+
+void FinnPlasserUnder2500(HavneData havn)
+{
+	var plasser = havn.GetAndelsPlasser().Concat(havn.GetSesongPlasser());
+	var smaPlasser = new List<BatPlass>();
+	foreach (var plass in plasser)
+	{
+		var lengde = ((double)plass.BatLengde) / 100;
+		var bredde = ((double)plass.BatBredde) / 100;
+		
+		int beregnetAvgift = (int)Math.Round(bredde * lengde * plass.PrisFaktor(lengde));
+		if (beregnetAvgift < 2500)
+		{
+			smaPlasser.Add(plass);
+		}
+	}
+
+	var eiere = smaPlasser.Select(p => p.Leier ?? p.Eier).OrderBy(e => e).ToList();
+	Console.WriteLine($"Båteiere med plasser under minimum avgift ({smaPlasser.Count} stk.)\n");
+	foreach (var eier in eiere)
+	{
+		Console.WriteLine(eier);
+	}
 }
 
 void SjekkVareVarianter(HavneData havn)
@@ -413,6 +438,18 @@ void PrintBatplass(BatPlass plass, bool visEier, MedlemsRegister medlemsRegister
 	var bruker = visEier ? plass.Eier : plass.Leier;
 	var bredde = ((double)plass.BatBredde / 100).ToString("0.00");
 	var lengde = ((double)plass.BatLengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
+	if (bruker == null)
+	{
+		
+	}
+	if (medlemsRegister.Medlemmer.TryGetValue(bruker, out var xxx))
+	{
+		
+	}
+	else
+	{
+		
+	}
 	var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
 	var eier = TilpassNavn(bruker);
 	var lysApning = plass.LysApning > 0 ? ((double)plass.LysApning / 100).ToString("0.00") : "---";
@@ -476,7 +513,7 @@ public class BatPlass
 		return beregnetAvgift + (leiePlass ? LeieTillegg(lengde) : 0);
 	}
 
-	int PrisFaktor(double lengde)
+	public int PrisFaktor(double lengde)
 	{
 		return lengde <= 7.2 ? 160 : (lengde >= 9.2 ? 200 : 180);
 	}
