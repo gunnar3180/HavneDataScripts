@@ -5,7 +5,7 @@
 
 void Main()
 {
-	//VisAlledata(new StyreWebExport().LesData());
+	VisAlledata(new StyreWebExport().LesData());
 	//VisAlledata(new ExcelExport().LesData());
 	//VisAlledata(new HavneWebExport().LesData());
 
@@ -21,7 +21,7 @@ void Main()
 	//SjekkSesongOgUngdom(new StyreWebExport().LesData());
 	//FinnLeietillegg(new StyreWebExport().LesData());
 	//SjekkVareVarianter(new StyreWebExport().LesData());
-	FinnPlasserUnder2500(new StyreWebExport().LesData());
+	//FinnPlasserUnder2500(new StyreWebExport().LesData());
 }
 
 void FinnPlasserUnder2500(HavneData havn)
@@ -845,6 +845,11 @@ public class StyreWebExport : HavneData
 		
 		foreach (var plass in fritak)
 		{
+			var bruker = plass.Leier??plass.Eier;
+			if (bruker == null)
+			{
+				
+			}
 			if (kjenteFritak.TryGetValue(plass.Leier??plass.Eier, out var reason))
 			{
 				plass.Vaktfritak = reason;
