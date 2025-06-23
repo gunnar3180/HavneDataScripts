@@ -1125,6 +1125,7 @@ public class Medlem
 	public string Navn { get; set; }
 	public string Tlf { get; set; }
 	public string Epost { get; set; }
+	public string Avdeling { get; set; }
 }
 
 public class VareVariant
@@ -1174,21 +1175,22 @@ public class MedlemsRegister
 {
 	private string swFolder;
 	private string swEksportFil;
+	private string downloadFolder;
 
-	public Dictionary<string, Medlem> Medlemmer { get; }
+	public Dictionary<string, Medlem> Medlemmer { get; private set; }
 	
 	public MedlemsRegister()
 	{
 		swFolder = @"C:\MyLocal\Solviken\FraStyreWeb";
-		swEksportFil = Path.Combine(swFolder, "Standard_Rapport.csv");
-		Medlemmer = new Dictionary<string, Medlem>();
+		downloadFolder = @"C:\Users\solvi\Downloads";
+		swEksportFil = "Detaljert_Rapport.csv";
 	}
 	
 	public MedlemsRegister LesData()
 	{
-		var downloadFolder = @"C:\Users\solvi\Downloads";
-		CopyNewerFile(Path.Combine(downloadFolder, "Standard_Rapport.csv"), swFolder);
-		using (var reader = new StreamReader(swEksportFil, Encoding.GetEncoding("UTF-8")))
+		Medlemmer = new Dictionary<string, Medlem>();
+		CopyNewerFile(Path.Combine(downloadFolder, swEksportFil), swFolder);
+		using (var reader = new StreamReader(Path.Combine(swFolder, swEksportFil), Encoding.GetEncoding("UTF-8")))
 		{
 			reader.ReadLine();      // Skip header
 			string line;
@@ -1198,8 +1200,10 @@ public class MedlemsRegister
 				if (fields.Length >= 5)
 				{
 					var name = $"{fields[1]} {fields[0]}";
-					var tlf = fields[4];
-					Medlemmer[name] = new Medlem {Navn = name, Tlf = tlf};
+					var avd = fields[4];
+					var tlf = fields[16];
+					var epost = fields[17];
+					Medlemmer[name] = new Medlem {Navn = name, Avdeling = avd, Tlf = tlf, Epost = epost};
 				}
 			}
 		}
