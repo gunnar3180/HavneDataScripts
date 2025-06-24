@@ -5,9 +5,11 @@
 
 void Main()
 {
-	VisAlledata(new StyreWebExport().LesData());
-	//VisAlledata(new ExcelExport().LesData());
-	//VisAlledata(new HavneWebExport().LesData());
+	bool bryggeliste = true;
+	
+	VisAlledata(new StyreWebExport().LesData("2"), bryggeliste);
+	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
+	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
 
 	//VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
 	//VisEierEndringer(new ExcelExport().LesData(), new StyreWebExport().LesData());
@@ -359,7 +361,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 	}
 }
 
-void VisAlledata(HavneData dataSet)
+void VisAlledata(HavneData dataSet, bool bryggeliste = true)
 {
 	var andelsplasser = dataSet.GetAndelsPlasser();
 	var sesongplasser = dataSet.GetSesongPlasser();
@@ -377,7 +379,19 @@ void VisAlledata(HavneData dataSet)
 	{
 		Console.WriteLine();
 	}
-	
+
+	if (bryggeliste)
+	{
+		var allePlasser = dataSet.GetAllePlasser();
+		Console.WriteLine($"\n{allePlasser.Count} båtplasser");
+		foreach (var plass in allePlasser)
+		{
+			PrintBatplass2(plass, medlemsRegister);
+		}
+
+		return;
+	}
+
 	Console.WriteLine($"\n{andelsplasser.Count} andelsplasser");
 	foreach (var plass in andelsplasser)
 	{
@@ -464,6 +478,47 @@ void PrintBatplass(BatPlass plass, bool visEier, MedlemsRegister medlemsRegister
 	}
 }
 
+void PrintBatplass2(BatPlass plass, MedlemsRegister medlemsRegister)
+{
+	var lysApning = plass.LysApning > 0 ? ((double)plass.LysApning / 100).ToString("0.00") : "---";
+	var bredde = ((double)plass.BatBredde / 100).ToString("0.00");
+	var lengde = ((double)plass.BatLengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
+	var bruker = plass.Leier ?? plass.Eier;
+	if (bruker == null)
+	{
+		// Ledig plass
+		Console.WriteLine($"{plass.PlassId.Substring(0, 4)}: {"*** Ledig ***",-25} {"",-13}                    LÅ: {lysApning}");
+		return;
+	}
+
+	string postfix;
+	if (plass.UngdomsPlass)
+	{
+		postfix = "(Ungdomsplass)";
+	}
+	else if (plass.TilLeie)
+	{
+		postfix = "(Til leie)";
+	}
+	else
+	{
+		postfix = plass.Leier != null && plass.Eier != null ? $"(Utleie fra {plass.Eier})" : null;
+	}
+	
+	var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
+	var eier = TilpassNavn(bruker);
+	Console.Write($"{plass.PlassId.Substring(0, 4)}: {eier,-25} {tlf,-13} BxL: {bredde} x {lengde}  LÅ: {lysApning}");
+	
+	if (postfix != null)
+	{
+		Console.WriteLine($"  {postfix}");
+	}
+	else
+	{
+		Console.WriteLine();
+	}
+}
+
 string TilpassNavn(string navn)
 {
 	switch (navn)
@@ -500,7 +555,7 @@ public class BatPlass
 		{
 			return 1000;
 		}
-		
+
 		double bredde = (double)BatBredde / 100;
 		double lengde = (double)BatLengde / 100;
 		int beregnetAvgift = (int)Math.Round(bredde * lengde * PrisFaktor(lengde));

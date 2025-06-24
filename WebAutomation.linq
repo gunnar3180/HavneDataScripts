@@ -57,7 +57,7 @@ static async Task VisRapportOgLastNed(IPage page, string savePath)
 	await page.ClickAsync("button:has-text(\"Vis\")");
 	var newTab = await newPageTask;
 	await newTab.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-	Console.WriteLine("Ferdig");
+	Console.Write("Ferdig...");
 
 	Console.Write("Laster ned...");
 	var downloadTask = newTab.WaitForDownloadAsync();
