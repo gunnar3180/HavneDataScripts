@@ -33,7 +33,6 @@ public static async Task Go()
 		Console.WriteLine("Logget inn på StyreWeb");
 		
 		await page.GotoAsync(marinaUrl);
-		await VisRapportOgLastNed(page, Path.Combine(downloadFolder, "Marina.csv"));
 
 		await page.Locator("#cboAction").SelectOptionAsync(new SelectOptionValue { Label = "Marina - Detaljert" });
 		await VisRapportOgLastNed(page, Path.Combine(downloadFolder, "Marina_-_Detaljert.csv"));

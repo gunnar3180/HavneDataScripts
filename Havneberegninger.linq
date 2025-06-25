@@ -57,9 +57,9 @@ void SjekkVareVarianter(HavneData havn)
 	{
 		var lengde = ((double)plass.BatLengde) / 100;
 		var beregnetVareVariant = VareVariant.Create(lengde);
-		if (plass.vareVariant.Size != beregnetVareVariant.Size)
+		if (plass.VareVariant.Size != beregnetVareVariant.Size)
 		{
-			Console.WriteLine($"{plass.PlassId}: Feil varevariant {plass.vareVariant.Size}, skal være {beregnetVareVariant.Size}");
+			Console.WriteLine($"{plass.PlassId}: Feil varevariant {plass.VareVariant.Size}, skal være {beregnetVareVariant.Size}");
 		}
 	}
 }
@@ -547,7 +547,7 @@ public class BatPlass
 	public bool Reservert { get; set; }
 	public string Vaktfritak { get; set; }
 	public string batType { get; set; }
-	public VareVariant vareVariant { get; set; }
+	public VareVariant VareVariant { get; set; }
 
 	public int BeregnBatplassAvgift()
 	{
@@ -739,7 +739,6 @@ public abstract class HavneData
 public class StyreWebExport : HavneData
 {
 	private string downloadFolder;
-	private string swMarinaFil;
 	private string swMarinaDetaljertFil;
 	private string swFramleieFil;
 	private string swGruppeVaktplikt;
@@ -754,7 +753,6 @@ public class StyreWebExport : HavneData
 		downloadFolder = @"C:\Users\solvi\Downloads";
 		var workFolder = @"C:\MyLocal\Solviken";
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
-		swMarinaFil = Path.Combine(swExportFolder, "Marina.csv");
 		swMarinaDetaljertFil = Path.Combine(swExportFolder, "Marina_-_Detaljert.csv");
 		swFramleieFil = Path.Combine(swExportFolder, "Fremleie_historie.csv");
 		swGruppeVaktplikt = "Vaktplikt-2025";
@@ -774,7 +772,6 @@ public class StyreWebExport : HavneData
 
 	protected override HavneData Read()
 	{
-		CopyNewerFile(Path.Combine(downloadFolder, "Marina.csv"), swExportFolder);
 		CopyNewerFile(Path.Combine(downloadFolder, "Marina_-_Detaljert.csv"), swExportFolder);
 		CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
 		
@@ -786,61 +783,6 @@ public class StyreWebExport : HavneData
 
 		var oppmaling = new LysApninger().Read();
 		
-		using (var reader = new StreamReader(swMarinaFil, Encoding.GetEncoding("UTF-8")))
-		{
-			reader.ReadLine();      // Skip header
-			string line;
-			while ((line = reader.ReadLine()) != null && !line.StartsWith("#"))
-			{
-				var fields = line.Split('\t');
-				var plassId = fields[1];
-				var plassType = fields[2];
-				var eier = fields[8];
-				var breddeMeter = fields[3];
-				var lengdeMeter = fields[4];
-				int breddeCm = 0;
-				int lengdeCm = 0;
-				
-				if (plassType == "Kan ikke brukes")
-				{
-					continue;
-				}
-				
-				if (eier == "Solviken Båtforening" || eier == "" || eier == "Ledig")
-				{
-					eier = null;
-				}
-				
-				if (double.TryParse(breddeMeter, out var bredde))
-				{
-					breddeCm = (int)Math.Round(bredde * 100);
-				}
-				
-				if (double.TryParse(lengdeMeter, out var lengde))
-				{
-					lengdeCm = (int)Math.Round(lengde * 100);
-				}
-
-				var sesongPlass = (plassType == "Sesongplass");
-				var ungdomsPlass = (plassType == "Ungdomsplass");
-				var reservert = (plassType == "Reservert");
-				var tilLeie = (plassType == "Til leie");
-				
-				BatPlasser[plassId] = new BatPlass
-				{
-					PlassId = plassId,
-					Eier = eier,
-					BatBredde = breddeCm,
-					BatLengde = lengdeCm,
-					SesongPlass = sesongPlass,
-					UngdomsPlass = ungdomsPlass,
-					TilLeie = tilLeie,
-					Reservert = reservert,
-					LysApning = oppmaling.GetLysApning(plassId)
-				};
-			}
-		}
-
 		if (File.Exists(swMarinaDetaljertFil))
 		{
 			using (var reader = new StreamReader(swMarinaDetaljertFil, Encoding.GetEncoding("UTF-8")))
@@ -851,14 +793,53 @@ public class StyreWebExport : HavneData
 				{
 					var fields = line.Split('\t');
 					var plassId = fields[1];
-					if (BatPlasser.TryGetValue(plassId, out var plass))
+					var plassType = fields[2];
+					var breddeMeter = fields[3];
+					var lengdeMeter = fields[4];
+					var eier = fields[14];
+					var vareVariant = VareVariant.Create(fields[19]);
+
+					int breddeCm = 0;
+					int lengdeCm = 0;
+
+					if (plassType == "Kan ikke brukes")
 					{
-						plass.vareVariant = VareVariant.Create(fields[19]);
+						continue;
 					}
-					else
+
+					if (eier == "Solviken Båtforening" || eier == "" || eier == "Ledig")
 					{
-						//Console.WriteLine($"*** {plassId} mangler i marinafil");
+						eier = null;
 					}
+
+					if (double.TryParse(breddeMeter, out var bredde))
+					{
+						breddeCm = (int)Math.Round(bredde * 100);
+					}
+
+					if (double.TryParse(lengdeMeter, out var lengde))
+					{
+						lengdeCm = (int)Math.Round(lengde * 100);
+					}
+
+					var sesongPlass = (plassType == "Sesongplass");
+					var ungdomsPlass = (plassType == "Ungdomsplass");
+					var reservert = (plassType == "Reservert");
+					var tilLeie = (plassType == "Til leie");
+					
+					BatPlasser[plassId] = new BatPlass
+					{
+						PlassId = plassId,
+						Eier = eier,
+						BatBredde = breddeCm,
+						BatLengde = lengdeCm,
+						SesongPlass = sesongPlass,
+						UngdomsPlass = ungdomsPlass,
+						TilLeie = tilLeie,
+						Reservert = reservert,
+						VareVariant = vareVariant,
+						LysApning = oppmaling.GetLysApning(plassId)
+					};
 				}
 			}
 		}
