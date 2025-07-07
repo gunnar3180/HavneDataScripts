@@ -6,8 +6,13 @@
 void Main()
 {
 	bool bryggeliste = true;
+	//
+	//
+	//Enumerable.Range(1, 6)
+	//	.ToList()
+	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
 	
-	VisAlledata(new StyreWebExport().LesData("2"), bryggeliste);
+	VisAlledata(new StyreWebExport().LesData(), bryggeliste);
 	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
 
@@ -361,7 +366,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 	}
 }
 
-void VisAlledata(HavneData dataSet, bool bryggeliste = true)
+void VisAlledata(HavneData dataSet, bool bryggeliste = true, string path = null)
 {
 	var andelsplasser = dataSet.GetAndelsPlasser();
 	var sesongplasser = dataSet.GetSesongPlasser();
@@ -369,6 +374,13 @@ void VisAlledata(HavneData dataSet, bool bryggeliste = true)
 	var tilLeiePlasser = dataSet.GetTilLeiePlasser();
 	var ledigePlasser = dataSet.GetLedigePlasser();
 	var medlemsRegister = new MedlemsRegister().LesData();
+	StreamWriter writer = null;
+	
+	if (path != null)
+	{
+		writer = new StreamWriter(Path.Combine(path, $"Brygge{dataSet.PlassPrefix ?? "r"}.txt"), false, Encoding.GetEncoding("UTF-8"));
+		Console.SetOut(writer);
+	}
 	
 	Console.Write($"Eksport fra {dataSet.Navn}");
 	if (dataSet.PlassPrefix != null)
@@ -389,6 +401,11 @@ void VisAlledata(HavneData dataSet, bool bryggeliste = true)
 			PrintBatplass2(plass, medlemsRegister);
 		}
 
+		if (writer != null)
+		{
+			writer.Close();
+		}
+		
 		return;
 	}
 
@@ -444,6 +461,11 @@ void VisAlledata(HavneData dataSet, bool bryggeliste = true)
 	foreach (var plass in sortert)
 	{
 		Console.WriteLine($"{plass.Item1}: {plass.Item2} m");
+	}
+	
+	if (writer != null)
+	{
+		writer.Close();
 	}
 }
 
