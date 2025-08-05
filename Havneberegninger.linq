@@ -5,7 +5,7 @@
 
 void Main()
 {
-	bool bryggeliste = false;
+	bool bryggeliste = true;
 	//
 	//
 	//Enumerable.Range(1, 6)
@@ -516,8 +516,16 @@ void PrintBatplass2(BatPlass plass, MedlemsRegister medlemsRegister)
 	var bruker = plass.Leier ?? plass.Eier;
 	if (bruker == null)
 	{
-		// Ledig plass
-		Console.WriteLine($"{plass.PlassId.Substring(0, 4)}: {"*** Ledig ***",-25} {"",-13}                    LÅ: {lysApning}");
+		if (plass.Reservert)
+		{
+			// Reservert plass
+			Console.WriteLine($"{plass.PlassId.Substring(0, 4)}: {"*** Reservert ***",-25} {"",-13}                    LÅ: {lysApning}");
+		}
+		else
+		{
+			// Ledig plass
+			Console.WriteLine($"{plass.PlassId.Substring(0, 4)}: {"*** Ledig ***",-25} {"",-13}                    LÅ: {lysApning}");
+		}
 		return;
 	}
 
@@ -525,6 +533,10 @@ void PrintBatplass2(BatPlass plass, MedlemsRegister medlemsRegister)
 	if (plass.UngdomsPlass)
 	{
 		postfix = "(Ungdomsplass)";
+	}
+	else if (plass.JollePlass)
+	{
+		postfix = "(Jolleplass)";
 	}
 	else if (plass.TilLeie)
 	{
@@ -697,6 +709,7 @@ public abstract class HavneData
 		.Except(GetAndelsPlasser())
 		.Except(GetSesongPlasser())
 		.Except(GetUngdomsPlasser())
+		.Except(GetJollePlasser())
 		.Except(GetReservertePlasser())
 		.ToList();
 	}
