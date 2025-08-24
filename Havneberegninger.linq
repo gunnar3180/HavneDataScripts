@@ -5,14 +5,14 @@
 
 void Main()
 {
-	bool bryggeliste = true;
+	bool bryggeliste = false;
 	//
 	//
 	//Enumerable.Range(1, 6)
 	//	.ToList()
 	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
 	
-	VisAlledata(new StyreWebExport().LesData(), bryggeliste);
+	VisAlledata(new StyreWebExport().LesData(fromDate: "25.08.2025"), bryggeliste);
 	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
 
@@ -29,6 +29,15 @@ void Main()
 	//FinnLeietillegg(new StyreWebExport().LesData());
 	//SjekkVareVarianter(new StyreWebExport().LesData());
 	//FinnPlasserUnder2500(new StyreWebExport().LesData());
+	//FinnEndringerSiden(DateTime.Parse("20.06.2025"), new StyreWebExport().LesData());
+}
+
+void FinnEndringerSiden(DateTime time, HavneData havn)
+{
+	// Antar at alt fram til "time" er fakturert. Finn endringer siden det som skal faktureres
+	// Er plasser tildelt etter time?
+	var nyeTildelinger = havn.GetAndelsPlasser().Where(h => h.Utlevert > time).ToList();
+	nyeTildelinger.Dump();
 }
 
 void FinnPlasserUnder2500(HavneData havn)
@@ -544,7 +553,25 @@ void PrintBatplass2(BatPlass plass, MedlemsRegister medlemsRegister)
 	}
 	else
 	{
-		postfix = plass.Leier != null && plass.Eier != null ? $"(Utleie fra {plass.Eier})" : null;
+		if (plass.Leier != null && plass.Eier != null)
+		{
+			if (plass.SesongPlass)
+			{
+				postfix = $"(Utleie fra {plass.Eier})";
+			}
+			else if (plass.LanePlass)
+			{
+				postfix = $"(Lån fra {plass.Eier})";
+			}
+			else
+			{
+				postfix = null;
+			}
+		}
+		else
+		{
+			postfix = null;
+		}
 	}
 	
 	var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
@@ -578,6 +605,7 @@ public class BatPlass
 {
 	public string PlassId { get; set; }
 	public string Eier { get; set; }
+	public DateTime Utlevert { get; set; }
 	public string Leier { get; set; }
 	public int BatBredde { get; set; }
 	public int BatLengde { get; set; }
@@ -586,6 +614,7 @@ public class BatPlass
 	public bool SesongPlass { get; set; }
 	public bool UngdomsPlass { get; set; }
 	public bool JollePlass { get; set; }
+	public bool LanePlass { get; set; }
 	public bool TilLeie { get; set; }
 	public bool Reservert { get; set; }
 	public string Vaktfritak { get; set; }
@@ -635,16 +664,16 @@ public class BatPlass
 public abstract class HavneData
 {
 	protected abstract SortedDictionary<string, BatPlass> BatPlasser { get; set; }
-	protected abstract HavneData Read();
+	protected abstract HavneData Read(string fromDate = null);
 	
 	public abstract string Navn { get; }
 	
 	public string PlassPrefix { get; set; }
 
-	public HavneData LesData(string prefix = null)
+	public HavneData LesData(string prefix = null, string fromDate = null)
 	{
 		PlassPrefix = prefix;
-		Read();
+		Read(fromDate);
 		
 		if (prefix != null)
 		{
@@ -693,11 +722,16 @@ public abstract class HavneData
 		return BatPlasser.Values.Where(v => v.JollePlass).ToList();
 	}
 
+	public List<BatPlass> GetLanePlasser()
+	{
+		return BatPlasser.Values.Where(v => v.LanePlass).ToList();
+	}
+
 	public List<BatPlass> GetTilLeiePlasser()
 	{
 		return BatPlasser.Values.Where(v => v.TilLeie).ToList();
 	}
-	
+
 	public List<BatPlass> GetReservertePlasser()
 	{
 		return BatPlasser.Values.Where(v => v.Reservert).ToList();
@@ -802,8 +836,6 @@ public class StyreWebExport : HavneData
 		downloadFolder = @"C:\Users\solvi\Downloads";
 		var workFolder = @"C:\MyLocal\Solviken";
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
-		swMarinaDetaljertFil = Path.Combine(swExportFolder, "Marina_-_Detaljert.csv");
-		swFramleieFil = Path.Combine(swExportFolder, "Fremleie_historie.csv");
 		swGruppeVaktplikt = "Vaktplikt-2025";
 		swFritaksGrupper = new List<string>
 		{
@@ -819,17 +851,63 @@ public class StyreWebExport : HavneData
 		BatPlasser = new SortedDictionary<string, BatPlass>();
 	}
 
-	protected override HavneData Read()
+	protected override HavneData Read(string fromDate = null)
 	{
-		CopyNewerFile(Path.Combine(downloadFolder, "Marina_-_Detaljert.csv"), swExportFolder);
-		CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
-		
-		foreach (var gruppe in swFritaksGrupper.Append(swGruppeVaktplikt))
+		if (fromDate == null)
 		{
-			CopyNewerFile(Path.Combine(downloadFolder, $"Gruppe{gruppe}.xlsx"), swExportFolder);
-			ConvertFromXlsx2Csv(Path.Combine(swExportFolder, $"Gruppe{gruppe}.xlsx"));
+			CopyNewerFile(Path.Combine(downloadFolder, "Marina_-_Detaljert.csv"), swExportFolder);
+			CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
+
+			foreach (var gruppe in swFritaksGrupper.Append(swGruppeVaktplikt))
+			{
+				CopyNewerFile(Path.Combine(downloadFolder, $"Gruppe{gruppe}.xlsx"), swExportFolder);
+				ConvertFromXlsx2Csv(Path.Combine(swExportFolder, $"Gruppe{gruppe}.xlsx"));
+			}
+		}
+		else
+		{
+			if (DateTime.TryParse(fromDate, out var from))
+			{
+				var subFolders = Directory.GetDirectories(swExportFolder);
+				var backups = new List<DateTime>();
+				foreach (var folder in subFolders)
+				{
+					var levels = folder.Split('\\');
+					var dateString = levels[levels.Length - 1];
+					if (DateTime.TryParse(dateString, out var date))
+					{
+						backups.Add(date);
+					}
+				}
+				
+				if (backups.Count > 0)
+				{
+					backups.Sort();
+					string date = null;
+					for (int i = backups.Count - 1; i >= 0; i--)
+					{
+						if (backups[i] <= from)
+						{
+							date = backups[i].ToString("d");
+							swExportFolder = Path.Combine(swExportFolder, date);
+							Console.WriteLine($"Leser Styreweb data fra {date}");
+							break;
+						}
+					}
+					
+					if (date == null)
+					{
+						date = backups[0].ToString("d");
+						swExportFolder = Path.Combine(swExportFolder, date);
+						Console.WriteLine($"Fant ikke StyreWeb data for {fromDate}, henter fra eldste backup: {date}");
+					}
+				}
+			}
 		}
 
+		swMarinaDetaljertFil = Path.Combine(swExportFolder, "Marina_-_Detaljert.csv");
+		swFramleieFil = Path.Combine(swExportFolder, "Fremleie_historie.csv");
+		
 		var oppmaling = new LysApninger().Read();
 		
 		if (File.Exists(swMarinaDetaljertFil))
@@ -845,6 +923,15 @@ public class StyreWebExport : HavneData
 					var plassType = fields[2];
 					var breddeMeter = fields[3];
 					var lengdeMeter = fields[4];
+					DateTime utlevert;
+					if (DateTime.TryParse(fields[13], out var time))
+					{
+						utlevert = time;
+					}
+					else
+					{
+						utlevert = DateTime.Now;
+					}
 					var eier = fields[14];
 					var vareVariant = VareVariant.Create(fields[19]);
 
@@ -874,6 +961,7 @@ public class StyreWebExport : HavneData
 					var sesongPlass = (plassType == "Sesongplass");
 					var ungdomsPlass = (plassType == "Ungdomsplass");
 					var jollePlass = (plassType == "Jolleplass");
+					var lanePlass = (plassType == "Låneplass");
 					var reservert = (plassType == "Reservert");
 					var tilLeie = (plassType == "Til leie");
 					
@@ -881,11 +969,13 @@ public class StyreWebExport : HavneData
 					{
 						PlassId = plassId,
 						Eier = eier,
+						Utlevert = utlevert,
 						BatBredde = breddeCm,
 						BatLengde = lengdeCm,
 						SesongPlass = sesongPlass,
 						UngdomsPlass = ungdomsPlass,
 						JollePlass = jollePlass,
+						LanePlass = lanePlass,
 						TilLeie = tilLeie,
 						Reservert = reservert,
 						VareVariant = vareVariant,
@@ -916,7 +1006,10 @@ public class StyreWebExport : HavneData
 							{
 								batPlass.Leier = leier;
 
-								if (!(batPlass.SesongPlass || batPlass.UngdomsPlass || batPlass.JollePlass))
+								if (!(batPlass.SesongPlass
+										|| batPlass.UngdomsPlass
+										|| batPlass.JollePlass
+										|| batPlass.LanePlass))
 								{
 									Console.WriteLine($"Plass {plassId} framleid, feil plasstype");
 								}
@@ -972,26 +1065,29 @@ public class StyreWebExport : HavneData
 	{
 		var gruppeFil = Path.Combine(swExportFolder, $"Gruppe{gruppe}.csv");
 		var medlemmer = new List<(string, string)>();	// (Navn, gruppe)
-		using (var reader = new StreamReader(gruppeFil, Encoding.GetEncoding("UTF-8")))
+		if (File.Exists(gruppeFil))
 		{
-			reader.ReadLine();      // Skip header
-			reader.ReadLine();      // Skip header
-			reader.ReadLine();      // Skip header
-			string line;
-			while ((line = reader.ReadLine()) != null)
+			using (var reader = new StreamReader(gruppeFil, Encoding.GetEncoding("UTF-8")))
 			{
-				var fields = line.Split('\t');
-				if (fields[0] == string.Empty)
+				reader.ReadLine();      // Skip header
+				reader.ReadLine();      // Skip header
+				reader.ReadLine();      // Skip header
+				string line;
+				while ((line = reader.ReadLine()) != null)
 				{
-					break;
+					var fields = line.Split('\t');
+					if (fields[0] == string.Empty)
+					{
+						break;
+					}
+
+					var navn = $"{fields[1]} {fields[0]}";
+					medlemmer.Add((navn, gruppe));
 				}
-
-				var navn = $"{fields[1]} {fields[0]}";
-				medlemmer.Add((navn, gruppe));
 			}
-
-			return medlemmer;
 		}
+
+		return medlemmer;
 	}
 
 	private void ConvertFromXlsx2Csv(string excelFile)
@@ -1023,6 +1119,11 @@ public class StyreWebExport : HavneData
 			File.Delete(destinationFile);
 			File.Move(source, destinationFile);
 			Console.WriteLine($"Oppdaterte StyreWeb export fil \"{fileName}\" fra Nedlastinger");
+			
+			var date = DateTime.Now.ToString("d");
+			var backupPath = Path.Combine(destination, date);
+			Directory.CreateDirectory(backupPath);
+			File.Copy(destinationFile, Path.Combine(backupPath, fileName), true);
 		}
 	}
 }
@@ -1041,7 +1142,7 @@ public class ExcelExport : HavneData
 		BatPlasser = new SortedDictionary<string, BatPlass>();
 	}
 
-	protected override HavneData Read()
+	protected override HavneData Read(string fromDate = null)
 	{
 		using (var reader = new StreamReader(batplassFil, Encoding.GetEncoding("ISO-8859-1")))
 		{
@@ -1100,7 +1201,7 @@ public class HavneWebExport : HavneData
 		BatPlasser = new SortedDictionary<string, BatPlass>();
 	}
 
-	protected override HavneData Read()
+	protected override HavneData Read(string fromDate = null)
 	{
 		using (var stream = new FileStream(hwExportFil, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
 		{
