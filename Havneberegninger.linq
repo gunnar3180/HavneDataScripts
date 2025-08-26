@@ -12,11 +12,13 @@ void Main()
 	//	.ToList()
 	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
 	
-	VisAlledata(new StyreWebExport().LesData(fromDate: "25.08.2025"), bryggeliste);
+	//VisAlledata(new StyreWebExport().LesData(fromDate: "25.08.2025"), bryggeliste);
 	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
 
-	//VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+	//VisEierEndringer(new StyreWebExport().LesData(fromDate: "21.08.2025"),
+	//				 new StyreWebExport().LesData(fromDate: "24.08.2025"));
+	VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
 	//VisEierEndringer(new ExcelExport().LesData(), new StyreWebExport().LesData());
 	//new List<int>{1, 2, 3, 5, 6}.ForEach(x => VisArealForskjeller(new HavneWebExport().LesData(x.ToString()), new StyreWebExport().LesData(x.ToString())));
 	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
@@ -311,7 +313,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 	var plasser1 = havn1.GetAllePlasser();
 	var plasser2 = havn2.GetAllePlasser();
 	var tapere = new List<(string, string)>();      // Eier, plassId
-	var vinnere = new List<(string, string)>();      // Eier, plassId
+	var vinnere = new List<(string, string, bool)>();      // Eier, plassId, is_matched_with_loser
 
 	Console.WriteLine($"Båtplass eier endringer fra {havn1.Navn} til {havn2.Navn}:\n");
 	
@@ -325,7 +327,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 				var taper = plass1.Eier ?? "Ledig";
 				var vinner = plass2.Eier ?? "Ledig";
 				tapere.Add((taper, plass1.PlassId));
-				vinnere.Add((vinner, plass2.PlassId));
+				vinnere.Add((vinner, plass2.PlassId, false));
 				
 				Console.WriteLine($"{plass1.PlassId}: Eier fra {taper} til {vinner}");
 			}
@@ -336,11 +338,30 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 		}
 	}
 	
-	Console.WriteLine("\nInnskudd som skal krediteres:");
+	Console.WriteLine("\nInnskudd som skal krediteres (Merket * har hatt flere plasser, må sjekkes:");
 	var venteListe = new List<string>();
 	foreach (var taper in tapere)
 	{
-		if (!vinnere.Any(v => v.Item1 == taper.Item1))
+		int i;
+		string merket = string.Empty;
+		for (i = 0; i < vinnere.Count; i++)
+		{
+			var vinner = vinnere[i];
+			if (vinner.Item1 == taper.Item1)
+			{
+				if (vinner.Item3)
+				{
+					merket = "*";
+				}
+				else
+				{
+					vinnere[i] = (vinner.Item1, vinner.Item2, true);
+					break;
+				}
+			}
+		}
+
+		if (i == vinnere.Count)
 		{
 			// Gitt fra seg plass uten å få ny
 			var plass = havn1.GetBatPlass(taper.Item2);
@@ -348,11 +369,11 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 			var plass2025 = havn2.GetBatPlass(taper.Item2);
 			if (plass2025.Eier != null)
 			{
-				Console.WriteLine($"{taper.Item2}: kr. {innskudd} - {taper.Item1}");
+				Console.WriteLine($"{taper.Item2}: kr. {innskudd} - {taper.Item1}{merket}");
 			}
 			else
 			{
-				venteListe.Add($"{taper.Item2}: kr. {innskudd} - {taper.Item1}");
+				venteListe.Add($"{taper.Item2}: kr. {innskudd} - {taper.Item1}{merket}");
 			}
 		}
 	}
