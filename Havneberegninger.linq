@@ -312,7 +312,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 {
 	var plasser1 = havn1.GetAllePlasser();
 	var plasser2 = havn2.GetAllePlasser();
-	var tapere = new List<(string, string)>();      // Eier, plassId
+	var tapere = new List<(string, string, bool)>();      // Eier, plassId, is_matched_with_winner
 	var vinnere = new List<(string, string, bool)>();      // Eier, plassId, is_matched_with_loser
 
 	Console.WriteLine($"Båtplass eier endringer fra {havn1.Navn} til {havn2.Navn}:\n");
@@ -326,7 +326,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 			{
 				var taper = plass1.Eier ?? "Ledig";
 				var vinner = plass2.Eier ?? "Ledig";
-				tapere.Add((taper, plass1.PlassId));
+				tapere.Add((taper, plass1.PlassId, false));
 				vinnere.Add((vinner, plass2.PlassId, false));
 				
 				Console.WriteLine($"{plass1.PlassId}: Eier fra {taper} til {vinner}");
@@ -340,6 +340,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 	
 	Console.WriteLine("\nInnskudd som skal krediteres (Merket * har hatt flere plasser, må sjekkes:");
 	var venteListe = new List<string>();
+	var flytteListe = new List<string>();
 	foreach (var taper in tapere)
 	{
 		int i;
@@ -376,6 +377,11 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 				venteListe.Add($"{taper.Item2}: kr. {innskudd} - {taper.Item1}{merket}");
 			}
 		}
+		else if (taper.Item1 != "Ledig")
+		{
+			// Byttet plass i havna
+			flytteListe.Add($"{taper.Item1} byttet plass fra {taper.Item2} til {vinnere[i].Item2}");
+		}
 	}
 	
 	Console.WriteLine("\nInnskudd som krediteres etter at plassen er videresolgt:");
@@ -384,15 +390,47 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 		Console.WriteLine(vente);
 	}
 
-	Console.WriteLine("\nNye innskudd:");
+	Console.WriteLine("\nNye innskudd (Merket * har hatt flere plasser, må sjekkes:");
 	foreach (var vinner in vinnere)
 	{
-		if (!tapere.Any(t => t.Item1 == vinner.Item1))
+		int i;
+		string merket = string.Empty;
+		for (i = 0; i < tapere.Count; i++)
+		{
+			var taper = tapere[i];
+			if (taper.Item1 == vinner.Item1)
+			{
+				if (taper.Item3)
+				{
+					merket = "*";
+				}
+				else
+				{
+					tapere[i] = (taper.Item1, taper.Item2, true);
+					break;
+				}
+			}
+		}
+
+		if (i == tapere.Count && vinner.Item1 != "Ledig")
 		{
 			// Fått ny plass uten å gi fra seg en
 			var innskudd = havn2.BeregnInnskudd(vinner.Item2).Item1.ToString("n").PadLeft(9);
-			Console.WriteLine($"{vinner.Item2}: kr. {innskudd} - {vinner.Item1}");
+			Console.WriteLine($"{vinner.Item2}: kr. {innskudd} - {vinner.Item1}{merket}");
 		}
+
+		//if (!tapere.Any(t => t.Item1 == vinner.Item1))
+		//{
+		//	// Fått ny plass uten å gi fra seg en
+		//	var innskudd = havn2.BeregnInnskudd(vinner.Item2).Item1.ToString("n").PadLeft(9);
+		//	Console.WriteLine($"{vinner.Item2}: kr. {innskudd} - {vinner.Item1}");
+		//}
+	}
+
+	Console.WriteLine("\nBåtplassbytter:");
+	foreach (var vente in flytteListe)
+	{
+		Console.WriteLine(vente);
 	}
 }
 
