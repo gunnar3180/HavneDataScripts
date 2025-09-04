@@ -5,7 +5,7 @@
 
 void Main()
 {
-	bool bryggeliste = false;
+	//bool bryggeliste = false;
 	//
 	//
 	//Enumerable.Range(1, 6)
@@ -17,7 +17,7 @@ void Main()
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
 
 	//VisEierEndringer(new StyreWebExport().LesData(fromDate: "21.08.2025"),
-	//				 new StyreWebExport().LesData(fromDate: "24.08.2025"));
+	//				 new StyreWebExport().LesData());
 	VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
 	//VisEierEndringer(new ExcelExport().LesData(), new StyreWebExport().LesData());
 	//new List<int>{1, 2, 3, 5, 6}.ForEach(x => VisArealForskjeller(new HavneWebExport().LesData(x.ToString()), new StyreWebExport().LesData(x.ToString())));
@@ -31,15 +31,21 @@ void Main()
 	//FinnLeietillegg(new StyreWebExport().LesData());
 	//SjekkVareVarianter(new StyreWebExport().LesData());
 	//FinnPlasserUnder2500(new StyreWebExport().LesData());
-	//FinnEndringerSiden(DateTime.Parse("20.06.2025"), new StyreWebExport().LesData());
+	//FinnEierEndringerEtter(DateTime.Parse("20.06.2025"), new StyreWebExport().LesData());
 }
 
-void FinnEndringerSiden(DateTime time, HavneData havn)
+void FinnEierEndringerEtter(DateTime time, HavneData havn)
 {
 	// Antar at alt fram til "time" er fakturert. Finn endringer siden det som skal faktureres
 	// Er plasser tildelt etter time?
 	var nyeTildelinger = havn.GetAndelsPlasser().Where(h => h.Utlevert > time).ToList();
-	nyeTildelinger.Dump();
+	Console.WriteLine($"Båtplasser tildelt etter {time.ToShortDateString()}");
+	Console.WriteLine();
+	
+	foreach (var plass in nyeTildelinger)
+	{
+		Console.WriteLine($"{plass.PlassId}: {plass.Utlevert.ToShortDateString()} - {plass.Eier}");
+	}
 }
 
 void FinnPlasserUnder2500(HavneData havn)
@@ -380,7 +386,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 		else if (taper.Item1 != "Ledig")
 		{
 			// Byttet plass i havna
-			flytteListe.Add($"{taper.Item1} byttet plass fra {taper.Item2} til {vinnere[i].Item2}");
+			flytteListe.Add($"{taper.Item1.PadRight(22)} fra {taper.Item2} til {vinnere[i].Item2}");
 		}
 	}
 	
@@ -982,6 +988,7 @@ public class StyreWebExport : HavneData
 					var plassType = fields[2];
 					var breddeMeter = fields[3];
 					var lengdeMeter = fields[4];
+					var innskudd = fields[8];
 					DateTime utlevert;
 					if (DateTime.TryParse(fields[13], out var time))
 					{
@@ -1024,6 +1031,12 @@ public class StyreWebExport : HavneData
 					var reservert = (plassType == "Reservert");
 					var tilLeie = (plassType == "Til leie");
 					
+					int innskuddKr = -1;
+					if (innskudd.Length > 0)
+					{
+						innskuddKr = int.Parse(innskudd.Split(',')[0]);
+					}
+					
 					BatPlasser[plassId] = new BatPlass
 					{
 						PlassId = plassId,
@@ -1038,6 +1051,7 @@ public class StyreWebExport : HavneData
 						TilLeie = tilLeie,
 						Reservert = reservert,
 						VareVariant = vareVariant,
+						Innskudd = innskuddKr,
 						LysApning = oppmaling.GetLysApning(plassId)
 					};
 				}
