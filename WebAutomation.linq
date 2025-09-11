@@ -19,7 +19,7 @@ public static async Task Go()
 	var marinaUrl   = hjemUrl + "archive/marina.aspx";
 	var framleieUrl = hjemUrl + "archive/marinasublet.aspx";
 	var medlemmerUrl = hjemUrl + "Members.aspx";
-	var downloadFolder = @"C:\Users\solvi\Downloads";
+	var downloadFolder = @"C:\Users\Solviken\Downloads";
 
 	using (var playwright = await Playwright.CreateAsync())
 	{

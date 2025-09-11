@@ -38,13 +38,51 @@ void FinnEierEndringerEtter(DateTime time, HavneData havn)
 {
 	// Antar at alt fram til "time" er fakturert. Finn endringer siden det som skal faktureres
 	// Er plasser tildelt etter time?
-	var nyeTildelinger = havn.GetAndelsPlasser().Where(h => h.Utlevert > time).ToList();
-	Console.WriteLine($"Båtplasser tildelt etter {time.ToShortDateString()}");
+	var nyeTildelinger = havn.GetAndelsPlasser().Where(h => h.UtlevertFra > time).ToList();
+	Console.WriteLine($"Andelsplasser tildelt etter {time.ToShortDateString()}:");
 	Console.WriteLine();
 	
 	foreach (var plass in nyeTildelinger)
 	{
-		Console.WriteLine($"{plass.PlassId}: {plass.Utlevert.ToShortDateString()} - {plass.Eier}");
+		Console.WriteLine($"{plass.PlassId}: {plass.UtlevertFra.ToShortDateString()} - {plass.Eier}");
+	}
+
+	var nyeSesongplasser = havn.GetSesongPlasser().Where(h => h.UtLeidFra > time);
+	Console.WriteLine();
+	Console.WriteLine($"Sesongplasser tildelt etter {time.ToShortDateString()}:");
+	Console.WriteLine();
+	foreach (var plass in nyeSesongplasser)
+	{
+		Console.Write($"{plass.PlassId}: {plass.UtLeidFra.ToShortDateString()} - {plass.Leier.PadRight(20)}");
+		//Console.WriteLine($"- fra {plass.Eier}");
+
+		if (plass.Eier != null)
+		{
+			Console.WriteLine($"- fra {plass.Eier}");
+		}
+		else
+		{
+			Console.WriteLine();
+		}
+	}
+
+	var nyeUngdomsplasser = havn.GetUngdomsPlasser().Where(h => h.UtLeidFra > time);
+	Console.WriteLine();
+	Console.WriteLine($"Ungdomsplasser tildelt etter {time.ToShortDateString()}:");
+	Console.WriteLine();
+	foreach (var plass in nyeUngdomsplasser)
+	{
+		Console.Write($"{plass.PlassId}: {plass.UtLeidFra.ToShortDateString()} - {plass.Leier.PadRight(20)}");
+		//Console.WriteLine($"- fra {plass.Eier}");
+
+		if (plass.Eier != null)
+		{
+			Console.WriteLine($"- fra {plass.Eier}");
+		}
+		else
+		{
+			Console.WriteLine();
+		}
 	}
 }
 
@@ -368,25 +406,34 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 			}
 		}
 
+		var gammelPlass = havn1.GetBatPlass(taper.Item2);
+		var gammeltInnskudd = gammelPlass.Innskudd.ToString("n").PadLeft(9);
+		var nyPlass = havn2.GetBatPlass(taper.Item2);
+		
 		if (i == vinnere.Count)
 		{
 			// Gitt fra seg plass uten å få ny
-			var plass = havn1.GetBatPlass(taper.Item2);
-			var innskudd = plass.Innskudd.ToString("n").PadLeft(9);
-			var plass2025 = havn2.GetBatPlass(taper.Item2);
-			if (plass2025.Eier != null)
+			if (nyPlass.Eier != null)
 			{
-				Console.WriteLine($"{taper.Item2}: kr. {innskudd} - {taper.Item1}{merket}");
+				Console.WriteLine($"{taper.Item2}: kr. {gammeltInnskudd} - {taper.Item1}{merket}");
 			}
 			else
 			{
-				venteListe.Add($"{taper.Item2}: kr. {innskudd} - {taper.Item1}{merket}");
+				venteListe.Add($"{taper.Item2}: kr. {gammeltInnskudd} - {taper.Item1}{merket}");
 			}
 		}
 		else if (taper.Item1 != "Ledig")
 		{
+			nyPlass = havn2.GetBatPlass(vinnere[i].Item2);
 			// Byttet plass i havna
-			flytteListe.Add($"{taper.Item1.PadRight(22)} fra {taper.Item2} til {vinnere[i].Item2}");
+			// Sjekk om innskudd skal økes
+			var nyttInskudd = havn2.BeregnInnskudd(nyPlass.PlassId);
+			var innskuddDiff = string.Empty;
+			if (gammelPlass.Innskudd < nyttInskudd.Item1)
+			{
+				innskuddDiff = $" - Innskudd økes med {nyttInskudd.Item1 - gammelPlass.Innskudd}";
+			}
+			flytteListe.Add($"{taper.Item1.PadRight(22)} fra {taper.Item2} til {nyPlass.PlassId}{innskuddDiff}");
 		}
 	}
 	
@@ -421,16 +468,18 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 		if (i == tapere.Count && vinner.Item1 != "Ledig")
 		{
 			// Fått ny plass uten å gi fra seg en
-			var innskudd = havn2.BeregnInnskudd(vinner.Item2).Item1.ToString("n").PadLeft(9);
-			Console.WriteLine($"{vinner.Item2}: kr. {innskudd} - {vinner.Item1}{merket}");
+			var innskudd = havn2.BeregnInnskudd(vinner.Item2);
+			Console.Write($"{vinner.Item2}: kr. {innskudd.Item1.ToString("n").PadLeft(9)} - {vinner.Item1}{merket}");
+			if (havn2.GetBatPlass(vinner.Item2).Innskudd == innskudd.Item1)
+			{
+				Console.WriteLine(" (Betalt)");
+			}
+			else
+			{
+				Console.WriteLine();
+			}
 		}
 
-		//if (!tapere.Any(t => t.Item1 == vinner.Item1))
-		//{
-		//	// Fått ny plass uten å gi fra seg en
-		//	var innskudd = havn2.BeregnInnskudd(vinner.Item2).Item1.ToString("n").PadLeft(9);
-		//	Console.WriteLine($"{vinner.Item2}: kr. {innskudd} - {vinner.Item1}");
-		//}
 	}
 
 	Console.WriteLine("\nBåtplassbytter:");
@@ -670,7 +719,8 @@ public class BatPlass
 {
 	public string PlassId { get; set; }
 	public string Eier { get; set; }
-	public DateTime Utlevert { get; set; }
+	public DateTime UtlevertFra { get; set; }
+	public DateTime UtLeidFra { get; set; }
 	public string Leier { get; set; }
 	public int BatBredde { get; set; }
 	public int BatLengde { get; set; }
@@ -898,7 +948,7 @@ public class StyreWebExport : HavneData
 
 	public StyreWebExport()
 	{
-		downloadFolder = @"C:\Users\solvi\Downloads";
+		downloadFolder = @"C:\Users\Solviken\Downloads";
 		var workFolder = @"C:\MyLocal\Solviken";
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
 		swGruppeVaktplikt = "Vaktplikt-2025";
@@ -989,14 +1039,14 @@ public class StyreWebExport : HavneData
 					var breddeMeter = fields[3];
 					var lengdeMeter = fields[4];
 					var innskudd = fields[8];
-					DateTime utlevert;
+					DateTime utlevertFra;
 					if (DateTime.TryParse(fields[13], out var time))
 					{
-						utlevert = time;
+						utlevertFra = time;
 					}
 					else
 					{
-						utlevert = DateTime.Now;
+						utlevertFra = DateTime.Now;
 					}
 					var eier = fields[14];
 					var vareVariant = VareVariant.Create(fields[19]);
@@ -1041,7 +1091,7 @@ public class StyreWebExport : HavneData
 					{
 						PlassId = plassId,
 						Eier = eier,
-						Utlevert = utlevert,
+						UtlevertFra = utlevertFra,
 						BatBredde = breddeCm,
 						BatLengde = lengdeCm,
 						SesongPlass = sesongPlass,
@@ -1066,6 +1116,7 @@ public class StyreWebExport : HavneData
 			{
 				var fields = line.Split('\t');
 				var plassId = fields[0];
+				var utleidFra = fields[2];
 				var tilDato = fields[3];
 				var leier = fields[4];
 				
@@ -1078,6 +1129,11 @@ public class StyreWebExport : HavneData
 							if (sluttDato > DateTime.Now)
 							{
 								batPlass.Leier = leier;
+								
+								if (DateTime.TryParse(utleidFra, out var startDato))
+								{
+									batPlass.UtLeidFra = startDato;
+								}
 
 								if (!(batPlass.SesongPlass
 										|| batPlass.UngdomsPlass
@@ -1269,7 +1325,7 @@ public class HavneWebExport : HavneData
 
 	public HavneWebExport()
 	{
-		var workFolder = @"C:\Users\solvi\OneDrive\Solviken\2025\Havnedatabasen";
+		var workFolder = @"C:\Users\Solviken\OneDrive\Solviken\2025\Havnedatabasen";
 		hwExportFil = Path.Combine(workFolder, "SolvikenBtforening_311224_124226.csv");
 		BatPlasser = new SortedDictionary<string, BatPlass>();
 	}
@@ -1337,7 +1393,7 @@ public class LysApninger
 
 	public LysApninger()
 	{
-		var workFolder = @"C:\Users\solvi\OneDrive\Solviken\2025\Havnedatabasen";
+		var workFolder = @"C:\Users\Solviken\OneDrive\Solviken\2025\Havnedatabasen";
 		lysApningFil = Path.Combine(workFolder, "LysApninger.csv");
 		BatPlasser = new Dictionary<string, int>();
 	}
@@ -1461,7 +1517,7 @@ public class MedlemsRegister
 	public MedlemsRegister()
 	{
 		swFolder = @"C:\MyLocal\Solviken\FraStyreWeb";
-		downloadFolder = @"C:\Users\solvi\Downloads";
+		downloadFolder = @"C:\Users\Solviken\Downloads";
 		swEksportFil = "Detaljert_Rapport.csv";
 	}
 	
