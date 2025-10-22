@@ -5,20 +5,20 @@
 
 void Main()
 {
-	//bool bryggeliste = false;
+	bool bryggeliste = false;
 	//
 	//
 	//Enumerable.Range(1, 6)
 	//	.ToList()
 	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
 	
-	//VisAlledata(new StyreWebExport().LesData(fromDate: "25.08.2025"), bryggeliste);
+	VisAlledata(new StyreWebExport().LesData(), bryggeliste);
 	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
 
 	//VisEierEndringer(new StyreWebExport().LesData(fromDate: "21.08.2025"),
 	//				 new StyreWebExport().LesData());
-	VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+	//VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
 	//VisEierEndringer(new ExcelExport().LesData(), new StyreWebExport().LesData());
 	//new List<int>{1, 2, 3, 5, 6}.ForEach(x => VisArealForskjeller(new HavneWebExport().LesData(x.ToString()), new StyreWebExport().LesData(x.ToString())));
 	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
@@ -32,6 +32,30 @@ void Main()
 	//SjekkVareVarianter(new StyreWebExport().LesData());
 	//FinnPlasserUnder2500(new StyreWebExport().LesData());
 	//FinnEierEndringerEtter(DateTime.Parse("20.06.2025"), new StyreWebExport().LesData());
+	//FinnSesongLeiereFraAndelsplass(new StyreWebExport().LesData());
+}
+
+void FinnSesongLeiereFraAndelsplass(HavneData havn)
+{
+	var andelsplasser = havn.GetAndelsPlasser();
+	var leietakere = new List<(string, string, string, string)>();		// Navn, etternavn, plass, eier
+	foreach (var andelsplass in andelsplasser)
+	{
+		if (andelsplass.Leier != null)
+		{
+			var etternavn = andelsplass.Leier.Split(' ').Reverse().ElementAt(0);
+			leietakere.Add((andelsplass.Leier, etternavn, andelsplass.PlassId, andelsplass.Eier));
+		}
+	}
+	
+	leietakere.Sort((p1, p2) => p1.Item2.CompareTo(p2.Item2));
+	
+	Console.WriteLine("Leietakere til andelsplass:");
+	Console.WriteLine("Leietaker              Plass     Eier");
+	foreach (var leietaker in leietakere)
+	{
+		Console.WriteLine($"{leietaker.Item1.PadRight(22)} {leietaker.Item3}      {leietaker.Item4}");
+	}
 }
 
 void FinnEierEndringerEtter(DateTime time, HavneData havn)
