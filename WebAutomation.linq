@@ -31,20 +31,82 @@ public static async Task Go()
 		await page.GetByRole(AriaRole.Button).ClickAsync();
 		await page.WaitForURLAsync(hjemUrl);
 		Console.WriteLine("Logget inn på StyreWeb");
-		
+
 		// Do the job
 		//await DownloadMarina(page, marinaUrl, downloadFolder);
 		//await DownloadFramleie(page, framleieUrl, downloadFolder);
 		//await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
-		
-		for (int nummer = 1; nummer <= 18; nummer++)
-		{
-			await LagOpplagsplass(page, marinaUrl, "D", nummer);
-		}
 
-		//await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
+		//for (int nummer = 1; nummer <= 18; nummer++)
+		//{
+		//	await LagOpplagsplass(page, marinaUrl, "D", nummer);
+		//}
+
+		//await EndrePlassVerdier(page, marinaUrl, "5V16", new List<(string, string)> {("Innskudd", "16450"), ("Dybde", "1,90")});
+		
+		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
+}
+
+static async Task EndrePlassVerdier(IPage page, string marinaUrl, string plass, List<(string, string)> verdier)
+{
+	await page.GotoAsync(marinaUrl);
+	var inputField = page.Locator("#LeftNavBar_txtSerieNr");
+	await inputField.FillAsync(plass);
+	await page.ClickAsync("button:has-text(\"Søk\")");
+
+	var tableLocator = page.Locator("sw-panel#pnlMain table#Main_grdv");
+	try
+	{
+		await tableLocator.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+	}
+	catch (Exception)
+	{
+		Console.WriteLine($"Fant ikke båtplass {plass}");
+		return;
+	}
+	
+	//Console.WriteLine("Table with ID 'Main_grdv' exists inside <sw-panel>.");
+	await page.Locator("a", new PageLocatorOptions { HasTextString = plass }).ClickAsync();
+	
+	var endreButton = page.Locator("input[type='button'][value='Endre']");
+	await endreButton.ClickAsync();
+	
+	foreach (var verdi in verdier)
+	{
+		var verdiId = GetEditFieldId(verdi.Item1);
+		if (verdiId == null)
+		{
+			Console.WriteLine($"{plass}: Fant ikke felt {verdi.Item1}");
+			continue;
+		}
+
+		await page.Locator($"#{verdiId}").FillAsync(verdi.Item2);
+		Console.WriteLine($"{plass}: {verdi.Item1} = {verdi.Item2}");
+	}
+
+	var lagreButton = page.Locator("input[type='submit'][value='Lagre']");
+	await lagreButton.ClickAsync();
+}
+
+static string GetEditFieldId(string fieldName)
+{
+	switch (fieldName)
+	{
+		case "Bredde":
+			return "Main_details_txtUserDefFlt1";
+		case "Lengde":
+			return "Main_details_txtUserDefFlt2";
+		case "Dybde":
+			return "Main_details_txtUserDefFlt3";
+		case "Høyde":
+			return "Main_details_txtUserDefFlt4";
+		case "Innskudd":
+			return "Main_details_txtPrice";
+	}
+
+	return null;
 }
 
 static async Task DownloadMarina(IPage page, string marinaUrl, string downloadFolder)
