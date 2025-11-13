@@ -756,6 +756,7 @@ public class BatPlass
 	public bool LanePlass { get; set; }
 	public bool TilLeie { get; set; }
 	public bool Reservert { get; set; }
+	public bool LandOpplag { get; set; }
 	public string Vaktfritak { get; set; }
 	public string batType { get; set; }
 	public VareVariant VareVariant { get; set; }
@@ -843,7 +844,9 @@ public abstract class HavneData
 	
 	public List<BatPlass> GetAndelsPlasser()
 	{
-		return BatPlasser.Values.Where(v => v.Eier != null).ToList();
+		return BatPlasser.Values.Where(v => v.Eier != null)
+		.Except(GetLandOpplagsPlasser())
+		.ToList();
 	}
 	
 	public List<BatPlass> GetSesongPlasser()
@@ -875,10 +878,16 @@ public abstract class HavneData
 	{
 		return BatPlasser.Values.Where(v => v.Reservert).ToList();
 	}
+	
+	public List<BatPlass> GetLandOpplagsPlasser()
+	{
+		return BatPlasser.Values.Where(v => v.LandOpplag).ToList();
+	}
 
 	public List<BatPlass> GetLedigePlasser()
 	{
 		return BatPlasser.Values
+		.Except(GetLandOpplagsPlasser())
 		.Except(GetAndelsPlasser())
 		.Except(GetSesongPlasser())
 		.Except(GetUngdomsPlasser())
@@ -1104,6 +1113,7 @@ public class StyreWebExport : HavneData
 					var lanePlass = (plassType == "Låneplass");
 					var reservert = (plassType == "Reservert");
 					var tilLeie = (plassType == "Til leie");
+					var landOpplag = (plassType == "Landopplag");
 					
 					int innskuddKr = -1;
 					if (innskudd.Length > 0)
@@ -1124,6 +1134,7 @@ public class StyreWebExport : HavneData
 						LanePlass = lanePlass,
 						TilLeie = tilLeie,
 						Reservert = reservert,
+						LandOpplag = landOpplag,
 						VareVariant = vareVariant,
 						Innskudd = innskuddKr,
 						LysApning = oppmaling.GetLysApning(plassId)
@@ -1269,7 +1280,11 @@ public class StyreWebExport : HavneData
 		
 		if (File.Exists(source))
 		{
-			File.Delete(destinationFile);
+			if (File.Exists(destinationFile))
+			{
+				File.Delete(destinationFile);
+			}
+			
 			File.Move(source, destinationFile);
 			Console.WriteLine($"Oppdaterte StyreWeb export fil \"{fileName}\" fra Nedlastinger");
 			
