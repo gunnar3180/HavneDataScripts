@@ -981,7 +981,7 @@ public class StyreWebExport : HavneData
 
 	public StyreWebExport()
 	{
-		downloadFolder = @"C:\Users\Solviken\Downloads";
+		downloadFolder = $@"C:\Users\{Environment.UserName}\Downloads";
 		var workFolder = @"C:\MyLocal\Solviken";
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
 		swGruppeVaktplikt = "Vaktplikt-2025";
@@ -1556,7 +1556,7 @@ public class MedlemsRegister
 	public MedlemsRegister()
 	{
 		swFolder = @"C:\MyLocal\Solviken\FraStyreWeb";
-		downloadFolder = @"C:\Users\Solviken\Downloads";
+		downloadFolder = $@"C:\Users\{Environment.UserName}\Downloads";
 		swEksportFil = "Detaljert_Rapport.csv";
 	}
 	

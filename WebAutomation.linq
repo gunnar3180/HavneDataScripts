@@ -19,12 +19,13 @@ public static async Task Go()
 	var marinaUrl   = hjemUrl + "archive/marina.aspx";
 	var framleieUrl = hjemUrl + "archive/marinasublet.aspx";
 	var medlemmerUrl = hjemUrl + "Members.aspx";
-	var downloadFolder = @"C:\Users\Solviken\Downloads";
+	var downloadFolder = $@"C:\Users\{Environment.UserName}\Downloads";
 
 	using (var playwright = await Playwright.CreateAsync())
 	{
 		var browser = await playwright.Chromium.LaunchAsync();
 		var page = await browser.NewPageAsync();
+		Console.WriteLine("Logger inn på StyreWeb...");
 		await page.GotoAsync(loginUrl);
 		await page.GetByLabel("Brukernavn").FillAsync(brukerNavn);
 		await page.GetByLabel("Passord").FillAsync(DecodeString(kodetPassord));
@@ -33,18 +34,13 @@ public static async Task Go()
 		Console.WriteLine("Logget inn på StyreWeb");
 
 		// Do the job
-		//await DownloadMarina(page, marinaUrl, downloadFolder);
-		//await DownloadFramleie(page, framleieUrl, downloadFolder);
-		//await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
-
-		//for (int nummer = 1; nummer <= 18; nummer++)
-		//{
-		//	await LagOpplagsplass(page, marinaUrl, "D", nummer);
-		//}
+		await DownloadMarina(page, marinaUrl, downloadFolder);
+		await DownloadFramleie(page, framleieUrl, downloadFolder);
+		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
 
 		//await EndrePlassVerdier(page, marinaUrl, "5V16", new List<(string, string)> {("Innskudd", "16450"), ("Dybde", "1,90")});
 		
-		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
+		//await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
 }
