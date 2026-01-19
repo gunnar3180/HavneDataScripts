@@ -629,22 +629,25 @@ void PrintBatplass(BatPlass plass, bool visEier, MedlemsRegister medlemsRegister
 	var bruker = visEier ? plass.Eier : plass.Leier;
 	var bredde = ((double)plass.BatBredde / 100).ToString("0.00");
 	var lengde = ((double)plass.BatLengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
+	
 	if (bruker == null)
 	{
-		
+		Console.WriteLine($"*** Feil - plass {plass.PlassId} har ingen eier");
+		return;
 	}
-	if (medlemsRegister.Medlemmer.TryGetValue(bruker, out var xxx))
+	
+	if (!medlemsRegister.Medlemmer.TryGetValue(bruker, out var xxx))
 	{
-		
+		Console.WriteLine($"*** Feil - {bruker} eier ikke plass {plass.PlassId}");
+		return;
 	}
-	else
-	{
-		
-	}
+	
 	var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
 	var eier = TilpassNavn(bruker);
 	var lysApning = plass.LysApning > 0 ? ((double)plass.LysApning / 100).ToString("0.00") : "---";
+	
 	Console.Write($"{plass.PlassId.Substring(0, 4)}: {eier,-25} {tlf,-13} BxL: {bredde} x {lengde}  LÅ: {lysApning}");
+	
 	if (postfix != null)
 	{
 		Console.WriteLine($"  {postfix}");

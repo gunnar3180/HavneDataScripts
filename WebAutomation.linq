@@ -15,23 +15,24 @@ public static async Task Go()
 	var brukerNavn = "gb3180@online.no";
 	var kodetPassord = "Cf77D57G1vfiv1S";
 	var loginUrl = "https://portal.styreweb.com/account/login.aspx";
-	var hjemUrl = "https://solvikenbatforening.portal.styreweb.com/secure/";
-	var marinaUrl   = hjemUrl + "archive/marina.aspx";
-	var framleieUrl = hjemUrl + "archive/marinasublet.aspx";
-	var medlemmerUrl = hjemUrl + "Members.aspx";
+	var baseUrl = "https://solvikenbatforening.portal.styreweb.com/secure/";
+	var homePageUrl = baseUrl + "Default2.aspx";
+	var marinaUrl   = baseUrl + "archive/marina.aspx";
+	var framleieUrl = baseUrl + "archive/marinasublet.aspx";
+	var medlemmerUrl = baseUrl + "Members.aspx";
 	var downloadFolder = $@"C:\Users\{Environment.UserName}\Downloads";
 
 	using (var playwright = await Playwright.CreateAsync())
 	{
 		var browser = await playwright.Chromium.LaunchAsync();
 		var page = await browser.NewPageAsync();
-		Console.WriteLine("Logger inn på StyreWeb...");
+		Console.Write("Logger inn på StyreWeb...");
 		await page.GotoAsync(loginUrl);
 		await page.GetByLabel("Brukernavn").FillAsync(brukerNavn);
 		await page.GetByLabel("Passord").FillAsync(DecodeString(kodetPassord));
 		await page.GetByRole(AriaRole.Button).ClickAsync();
-		await page.WaitForURLAsync(hjemUrl);
-		Console.WriteLine("Logget inn på StyreWeb");
+		await page.WaitForURLAsync(homePageUrl);
+		Console.WriteLine("Logget inn");
 
 		// Do the job
 		await DownloadMarina(page, marinaUrl, downloadFolder);
