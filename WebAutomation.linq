@@ -20,6 +20,7 @@ public static async Task Go()
 	var marinaUrl   = baseUrl + "archive/marina.aspx";
 	var framleieUrl = baseUrl + "archive/marinasublet.aspx";
 	var medlemmerUrl = baseUrl + "Members.aspx";
+	var grupperingUrl = baseUrl + "Group.aspx?";
 	var downloadFolder = $@"C:\Users\{Environment.UserName}\Downloads";
 
 	using (var playwright = await Playwright.CreateAsync())
@@ -38,12 +39,25 @@ public static async Task Go()
 		await DownloadMarina(page, marinaUrl, downloadFolder);
 		await DownloadFramleie(page, framleieUrl, downloadFolder);
 		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
+		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
 
 		//await EndrePlassVerdier(page, marinaUrl, "5V16", new List<(string, string)> {("Innskudd", "16450"), ("Dybde", "1,90")});
 		
-		//await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
+		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
+}
+
+static async Task DownloadGruppering(IPage page, string grupperingUrl, string downloadFolder, string gruppering)
+{
+	await page.GotoAsync(grupperingUrl);
+	await page.Locator("a").Locator($"text=\"{gruppering}\"").ClickAsync();		// Exact match
+	var downloadTask = page.WaitForDownloadAsync();
+	await page.ClickAsync("button:has-text(\"Eksport\")");
+	var download = await downloadTask;
+	var savePath = Path.Combine(downloadFolder, $"Gruppe{gruppering}.xlsx");
+	await download.SaveAsAsync(savePath);
+	Console.WriteLine($"Lastet ned {savePath}");
 }
 
 static async Task EndrePlassVerdier(IPage page, string marinaUrl, string plass, List<(string, string)> verdier)

@@ -1,6 +1,7 @@
 <Query Kind="Program">
   <Reference>&lt;RuntimeDirectory&gt;\System.Collections.Concurrent.dll</Reference>
   <Namespace>System.Collections.Concurrent</Namespace>
+  <Namespace>System.Globalization</Namespace>
 </Query>
 
 void Main()
@@ -976,6 +977,7 @@ public class StyreWebExport : HavneData
 	private string swMarinaDetaljertFil;
 	private string swFramleieFil;
 	private string swGruppeVaktplikt;
+	private string swGruppeVenteliste;
 	private string swExportFolder;
 	private List<string> swFritaksGrupper;
 
@@ -988,6 +990,7 @@ public class StyreWebExport : HavneData
 		var workFolder = @"C:\MyLocal\Solviken";
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
 		swGruppeVaktplikt = "Vaktplikt-2025";
+		swGruppeVenteliste = "Venteliste";
 		swFritaksGrupper = new List<string>
 		{
 			"Styre",
@@ -1009,7 +1012,7 @@ public class StyreWebExport : HavneData
 			CopyNewerFile(Path.Combine(downloadFolder, "Marina_-_Detaljert.csv"), swExportFolder);
 			CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
 
-			foreach (var gruppe in swFritaksGrupper.Append(swGruppeVaktplikt))
+			foreach (var gruppe in swFritaksGrupper.Append(swGruppeVaktplikt).Append(swGruppeVenteliste))
 			{
 				CopyNewerFile(Path.Combine(downloadFolder, $"Gruppe{gruppe}.xlsx"), swExportFolder);
 				ConvertFromXlsx2Csv(Path.Combine(swExportFolder, $"Gruppe{gruppe}.xlsx"));
@@ -1225,6 +1228,8 @@ public class StyreWebExport : HavneData
 			}
 		}
 
+		LesVenteliste();
+		
 		return this;
 	}
 
@@ -1255,6 +1260,59 @@ public class StyreWebExport : HavneData
 		}
 
 		return medlemmer;
+	}
+
+	private List<PlassSoker> LesVenteliste()
+	{
+		var gruppeFil = Path.Combine(swExportFolder, "GruppeVenteliste.csv");
+		var sokere = new List<PlassSoker>();
+		if (File.Exists(gruppeFil))
+		{
+			using (var reader = new StreamReader(gruppeFil, Encoding.GetEncoding("UTF-8")))
+			{
+				reader.ReadLine();      // Skip header
+				reader.ReadLine();      // Skip header
+				reader.ReadLine();      // Skip header
+				string line;
+				while ((line = reader.ReadLine()) != null)
+				{
+					var fields = line.Split('\t');
+					if (fields[0] == string.Empty)
+					{
+						break;
+					}
+
+					var navn = $"{fields[1]} {fields[0]}";
+					var dato = fields[10];
+					if (!DateTime.TryParseExact(dato, "M/d/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fraTid))
+					{
+						Console.WriteLine($"Søker {navn} har ugyldig starttid {dato}");
+						continue;
+					}
+
+					var kommentar = fields[12];
+					var felt = kommentar.Split(';');
+					if (felt.Length != 6)
+					{
+						Console.WriteLine($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
+						continue;
+					}
+
+					sokere.Add(
+						new PlassSoker
+						{
+							Navn = navn,
+							FraTid = fraTid,
+							PlassType = GetPlassType(felt[0], felt[1]),
+							PlassId = GetPlassId(felt[1]),
+							
+						}
+					);
+				}
+			}
+		}
+		
+		return sokere;
 	}
 
 	private void ConvertFromXlsx2Csv(string excelFile)
@@ -1297,6 +1355,26 @@ public class StyreWebExport : HavneData
 			File.Copy(destinationFile, Path.Combine(backupPath, fileName), true);
 		}
 	}
+}
+
+public class PlassSoker
+{
+	public string Navn { get; set; }
+	public DateTime FraTid { get; set; }
+	public PlassType PlassType { get; set; }
+	public string PlassId { get; set; }		// Hvis AB eller SF
+	public int Bredde { get; set; }
+	public int Lengde { get; set; }
+	public string BatType { get; set; }
+}
+
+public enum PlassType
+{
+	AndelNy,
+	AndelBytte,
+	SesongNy,
+	SesongForny,
+	Jolle
 }
 
 public class ExcelExport : HavneData
