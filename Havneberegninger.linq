@@ -13,7 +13,7 @@ void Main()
 	//	.ToList()
 	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
 	
-	VisAlledata(new StyreWebExport().LesData(), bryggeliste);
+	VisAlleData(new StyreWebExport().LesData(), bryggeliste);
 	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
 
@@ -514,7 +514,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 	}
 }
 
-void VisAlledata(HavneData dataSet, bool bryggeliste = true, string path = null)
+void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 {
 	var andelsplasser = dataSet.GetAndelsPlasser();
 	var sesongplasser = dataSet.GetSesongPlasser();
@@ -522,6 +522,7 @@ void VisAlledata(HavneData dataSet, bool bryggeliste = true, string path = null)
 	var jollePlasser = dataSet.GetJollePlasser();
 	var tilLeiePlasser = dataSet.GetTilLeiePlasser();
 	var ledigePlasser = dataSet.GetLedigePlasser();
+	var venteListe = dataSet.VenteListe;
 	var medlemsRegister = new MedlemsRegister().LesData();
 	StreamWriter writer = null;
 	
@@ -618,10 +619,43 @@ void VisAlledata(HavneData dataSet, bool bryggeliste = true, string path = null)
 	{
 		Console.WriteLine($"{plass.Item1}: {plass.Item2} m");
 	}
+
+	Console.WriteLine("\n *** Venteliste ***\n");
+	Console.WriteLine("Medlem                    Plass      Bredde     Lengde     Båt                  Dager");
+	Console.WriteLine("-------------------------------------------------------------------------------------");
+	
+	var pri1Plasser = venteListe.Where(p => p.PlassType == PlassType.AndelBytte).OrderBy(p => p.FraTid);
+	PrintVenteliste("Pri 1: Bytte av andelsplass", pri1Plasser);
+
+	var underPri1Plasser = venteListe.Except(pri1Plasser);
+	var pri2Plasser = underPri1Plasser
+		.Where(p => p.PlassType == PlassType.AndelNy && andelsplasser.Find(a => a.Eier == p.Navn) != null).OrderBy(p => p.FraTid);
+	PrintVenteliste("Pri 2: Ny (ekstra) andelsplass for andelshaver", pri2Plasser);
+
+	var underPri2Plasser = underPri1Plasser.Except(pri2Plasser);
+	var pri3Plasser = underPri2Plasser
+		.Where(p => p.PlassType == PlassType.AndelNy).OrderBy(p => p.FraTid);
+	PrintVenteliste("Pri 3: Ny andelsplass", pri3Plasser);
+
+	var underPri3Plasser = underPri2Plasser.Except(pri3Plasser);
+	var pri4Plasser = underPri3Plasser
+		.OrderBy(p => p.PlassType).ThenBy(p => p.FraTid);
+	PrintVenteliste("Pri 4: Sesongplass", pri4Plasser);
+
+	Console.WriteLine();
 	
 	if (writer != null)
 	{
 		writer.Close();
+	}
+}
+
+void PrintVenteliste(string heading, IEnumerable<PlassSoker> venteliste)
+{
+	Console.WriteLine($"\n* {heading}:");
+	foreach (var plass in venteliste)
+	{
+		Console.WriteLine($"{plass.Navn,-25} {plass.PlassId,-10} {plass.Bredde,-10} {plass.Lengde,-10} {plass.BatType,-20} {(DateTime.Now - plass.FraTid).Days}");
 	}
 }
 
@@ -807,13 +841,16 @@ public class BatPlass
 
 public abstract class HavneData
 {
-	protected abstract SortedDictionary<string, BatPlass> BatPlasser { get; set; }
-	protected abstract HavneData Read(string fromDate = null);
+	protected SortedDictionary<string, BatPlass> BatPlasser { get; set; }
 	
 	public abstract string Navn { get; }
 	
 	public string PlassPrefix { get; set; }
+	
+	public List<PlassSoker> VenteListe { get; set; }
 
+	protected abstract HavneData Read(string fromDate = null);
+	
 	public HavneData LesData(string prefix = null, string fromDate = null)
 	{
 		PlassPrefix = prefix;
@@ -981,7 +1018,6 @@ public class StyreWebExport : HavneData
 	private string swExportFolder;
 	private List<string> swFritaksGrupper;
 
-	protected override SortedDictionary<string, BatPlass> BatPlasser { get; set; }
 	public override string Navn { get => "StyreWeb"; }
 
 	public StyreWebExport()
@@ -1228,7 +1264,7 @@ public class StyreWebExport : HavneData
 			}
 		}
 
-		LesVenteliste();
+		VenteListe = LesVenteliste();
 		
 		return this;
 	}
@@ -1290,7 +1326,7 @@ public class StyreWebExport : HavneData
 						continue;
 					}
 
-					var kommentar = fields[12];
+					var kommentar = fields[12].Trim('"');
 					var felt = kommentar.Split(';');
 					if (felt.Length != 6)
 					{
@@ -1305,7 +1341,10 @@ public class StyreWebExport : HavneData
 							FraTid = fraTid,
 							PlassType = GetPlassType(felt[0], felt[1]),
 							PlassId = GetPlassId(felt[1]),
-							
+							Seilbat = (felt[2] == "S"),
+							Bredde = double.Parse(felt[3]),
+							Lengde = double.Parse(felt[4]),
+							BatType = felt[5]
 						}
 					);
 				}
@@ -1315,6 +1354,46 @@ public class StyreWebExport : HavneData
 		return sokere;
 	}
 
+	private PlassType GetPlassType(string v1, string v2)
+	{
+		switch (v1)
+		{
+			case "A":
+				// Andelsplass
+				switch (v2[0])
+				{
+					case 'B':
+						return PlassType.AndelBytte;
+					case 'N':
+						return PlassType.AndelNy;
+				}
+			break;
+			case "S":
+				switch (v2[0])
+				{
+					case 'F':
+						return PlassType.SesongForny;
+					case 'N':
+						return PlassType.SesongNy;
+				}
+			break;
+			case "J":
+				return PlassType.Jolle;
+		}
+		
+		return PlassType.Ingen;
+	}
+
+	private string GetPlassId(string v2)
+	{
+		if (v2.Length == 5)
+		{
+			return v2.Substring(1);
+		}
+		
+		return null;
+	}
+
 	private void ConvertFromXlsx2Csv(string excelFile)
 	{
 		var folder = Path.GetDirectoryName(excelFile);
@@ -1322,6 +1401,7 @@ public class StyreWebExport : HavneData
 
 		if (File.GetLastWriteTime(excelFile) > File.GetLastWriteTime(csvFile))
 		{
+			File.Delete(csvFile);
 			string scriptName = @"C:\MyLocal\Solviken\xlsx2csv.vbs"; // full path to script
 			ProcessStartInfo ps = new ProcessStartInfo();
 			ps.FileName = "cscript.exe";
@@ -1362,26 +1442,27 @@ public class PlassSoker
 	public string Navn { get; set; }
 	public DateTime FraTid { get; set; }
 	public PlassType PlassType { get; set; }
-	public string PlassId { get; set; }		// Hvis AB eller SF
-	public int Bredde { get; set; }
-	public int Lengde { get; set; }
+	public string PlassId { get; set; }		// Hvis A;B, A;S eller S;F
+	public bool Seilbat { get; set; }
+	public double Bredde { get; set; }
+	public double Lengde { get; set; }
 	public string BatType { get; set; }
 }
 
 public enum PlassType
 {
-	AndelNy,
 	AndelBytte,
-	SesongNy,
+	AndelNy,
 	SesongForny,
-	Jolle
+	SesongNy,
+	Jolle,
+	Ingen
 }
 
 public class ExcelExport : HavneData
 {
 	private string batplassFil;
 
-	protected override SortedDictionary<string, BatPlass> BatPlasser { get; set; }
 	public override string Navn { get => "Excel"; }
 
 	public ExcelExport()
@@ -1440,7 +1521,6 @@ public class HavneWebExport : HavneData
 {
 	private string hwExportFil;
 
-	protected override SortedDictionary<string, BatPlass> BatPlasser { get; set; }
 	public override string Navn { get => "HavneWeb"; }
 
 	public HavneWebExport()
