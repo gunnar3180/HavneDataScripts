@@ -620,9 +620,9 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 		Console.WriteLine($"{plass.Item1}: {plass.Item2} m");
 	}
 
-	Console.WriteLine("\n *** Venteliste ***\n");
-	Console.WriteLine("Medlem                    Plass      Bredde     Lengde     Båt                  Dager");
-	Console.WriteLine("-------------------------------------------------------------------------------------");
+	Console.WriteLine($"\n *** Venteliste ({venteListe.Count()}) ***\n");
+	Console.WriteLine("Medlem                    Plass      Bredde     Lengde     Båt                  Dager      Gruppe");
+	Console.WriteLine("-------------------------------------------------------------------------------------------------------");
 	
 	var pri1Plasser = venteListe.Where(p => p.PlassType == PlassType.AndelBytte).OrderBy(p => p.FraTid);
 	PrintVenteliste("Pri 1: Bytte av andelsplass", pri1Plasser);
@@ -652,10 +652,13 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 
 void PrintVenteliste(string heading, IEnumerable<PlassSoker> venteliste)
 {
-	Console.WriteLine($"\n* {heading}:");
+	Console.WriteLine($"\n* {heading} ({venteliste.Count()}):");
 	foreach (var plass in venteliste)
 	{
-		Console.WriteLine($"{plass.Navn,-25} {plass.PlassId,-10} {plass.Bredde,-10} {plass.Lengde,-10} {plass.BatType,-20} {(DateTime.Now - plass.FraTid).Days}");
+		int dager = (DateTime.Now - plass.FraTid).Days;
+		var gruppe = HavneData.FinnInnskuddGruppeFraLengde(plass.Lengde);
+		var gruppeTxt = $"{gruppe.Item1}: {gruppe.Item2}";
+		Console.WriteLine($"{plass.Navn,-25} {plass.PlassId,-10} {plass.Bredde,-10} {plass.Lengde,-10} {plass.BatType,-20} {dager,-10} {gruppeTxt}");
 	}
 }
 
@@ -981,30 +984,36 @@ public abstract class HavneData
 		if (plass != null)
 		{
 			double lengde = (double)plass.BatLengde / 100;
-			switch (lengde)
-			{
-				case double len when (len <= 5.4):
-					return (7750, "A");
-				case double len when (len <= 7.0):
-					return (11100, "B");
-				case double len when (len <= 8.7):
-					return (14700, "C");
-				case double len when (len <= 9.1):
-					return (19750, "D");
-				case double len when (len <= 10.0):
-					return (22500, "E");
-				case double len when (len <= 10.6):
-					return (25150, "F");
-				case double len when (len <= 11.8):
-					return (27900, "G");
-				case double len when (len <= 12.4):
-					return (34500, "H");
-				default:
-					return (45500, "L");
-			}
+			var gruppe = FinnInnskuddGruppeFraLengde(lengde);
+			return (gruppe.Item3, gruppe.Item1);
 		}
 		
 		return (-1, "X");
+	}
+	
+	public static (string, string, int) FinnInnskuddGruppeFraLengde(double lengde)
+	{
+		switch (lengde)
+		{
+			case double len when (len <= 5.4):
+				return ("A", "Inntil 5,4 m", 7750);
+			case double len when (len <= 7.0):
+				return ("B", "5,5 - 7,0 m", 11100);
+			case double len when (len <= 8.7):
+				return ("C", "7,1 – 8,7 m", 14700);
+			case double len when (len <= 9.1):
+				return ("D", "8,8 – 9,1 m", 19750);
+			case double len when (len <= 10.0):
+				return ("E", "9,2 – 10,0 m", 22500);
+			case double len when (len <= 10.6):
+				return ("F", "10,1 – 10,6 m", 25150);
+			case double len when (len <= 11.8):
+				return ("G", "10,7 – 11,8 m", 27900);
+			case double len when (len <= 12.4):
+				return ("H", "11,9 – 12,4 m", 34500);
+			default:
+				return ("L", "12,5 – 13,7 m", 45500);
+		}
 	}
 }
 
