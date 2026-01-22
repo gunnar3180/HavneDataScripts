@@ -36,16 +36,99 @@ public static async Task Go()
 		Console.WriteLine("Logget inn");
 
 		// Do the job
-		await DownloadMarina(page, marinaUrl, downloadFolder);
-		await DownloadFramleie(page, framleieUrl, downloadFolder);
-		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
-		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
-
-		//await EndrePlassVerdier(page, marinaUrl, "5V16", new List<(string, string)> {("Innskudd", "16450"), ("Dybde", "1,90")});
+		//await DownloadMarina(page, marinaUrl, downloadFolder);
+		//await DownloadFramleie(page, framleieUrl, downloadFolder);
+		//await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
+		//await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
+		
+		//await EndrePlassVerdier(page, marinaUrl, "5V16", new List<(string, string)> {("Bredde", "4,10"), ("Lengde", "10"), ("Dybde", "0")});
+		await EndreBatplassStorrelser(page, marinaUrl);
 		
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
+}
+
+static async Task EndreBatplassStorrelser(IPage page, string marinaUrl)
+{
+	var workFolder = @"C:\MyLocal\Solviken";
+	var oppmalingPath = @"C:\Users\Solviken\OneDrive\Solviken\2025\Havnedatabasen\Oppmåling-2025";
+	var oppmalinger = Directory.GetFiles(oppmalingPath, "*.xlsx");
+	foreach (var oppmaling in oppmalinger)
+	{
+		var csvFile = Path.Combine(workFolder, Path.GetFileNameWithoutExtension(oppmaling) + ".csv");
+		ConvertFromXlsx2Csv(oppmaling, csvFile);
+		
+		using (var reader = new StreamReader(csvFile, Encoding.GetEncoding("UTF-8")))
+		{
+			reader.ReadLine();		// Skip header
+			string line;
+			while ((line = reader.ReadLine()) != null)
+			{
+				var fields = line.Trim().Split('\t');
+				if (fields.Length == 4)
+				{
+					var plassId = fields[0];
+					var bredde = GetIntValue(fields[1]) / 100.0;
+					var lenH = GetIntValue(fields[2]) / 100;
+					var lenV = GetIntValue(fields[3]) / 100;
+					var lengde = Math.Max(lenH, lenV);
+
+					await EndrePlassVerdier(page, 
+											marinaUrl, 
+											plassId, 
+											new List<(string, string)> 
+											{ 
+												("Bredde", bredde.ToString()), 
+												("Lengde", lengde.ToString()), 
+												("Dybde", "0") 
+											});
+
+					//Console.WriteLine($"Plass {plassId}: B={bredde,-8} L={lengde}");
+				}
+			}
+		}
+		//await EndrePlassVerdier(page, marinaUrl, "5V16", new List<(string, string)> { ("Bredde", "4,10"), ("Lengde", "10"), ("Dybde", "0") });
+	}
+}
+
+static int GetIntValue(string field)
+{
+	if (field.Length == 0)
+	{
+		return 0;
+	}
+	
+	var parts = field.Split('.', ',');
+	return int.Parse(parts[0]);
+}
+
+static void ConvertFromXlsx2Csv(string excelFile, string csvFile)
+{
+	if (File.Exists(csvFile))
+	{
+		if (File.GetLastWriteTime(excelFile) > File.GetLastWriteTime(csvFile))
+		{
+			File.Delete(csvFile);
+		}
+		else
+		{
+			return;
+		}
+	}
+
+	Console.Write($"Konverterer excel fil {excelFile} til csv fil {csvFile} ...");
+	
+	string scriptName = @"C:\MyLocal\Solviken\xlsx2csv.vbs"; // full path to script
+	ProcessStartInfo ps = new ProcessStartInfo();
+	ps.FileName = "cscript.exe";
+	ps.Arguments = $"{scriptName} {excelFile} {csvFile}";
+	ps.WindowStyle = ProcessWindowStyle.Hidden;
+	ps.CreateNoWindow = true;
+	var process = Process.Start(ps);
+	process.WaitForExit();
+	process.Close();
+	Console.WriteLine("Ferdig");
 }
 
 static async Task DownloadGruppering(IPage page, string grupperingUrl, string downloadFolder, string gruppering)
