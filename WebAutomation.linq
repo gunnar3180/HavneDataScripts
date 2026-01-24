@@ -36,14 +36,13 @@ public static async Task Go()
 		Console.WriteLine("Logget inn");
 
 		// Do the job
-		//await DownloadMarina(page, marinaUrl, downloadFolder);
-		//await DownloadFramleie(page, framleieUrl, downloadFolder);
-		//await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
-		//await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
-		
-		//await EndrePlassVerdier(page, marinaUrl, "5V16", new List<(string, string)> {("Bredde", "4,10"), ("Lengde", "10"), ("Dybde", "0")});
-		await EndreBatplassStorrelser(page, marinaUrl);
-		
+		await DownloadMarina(page, marinaUrl, downloadFolder);
+		await DownloadFramleie(page, framleieUrl, downloadFolder);
+		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
+		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
+
+		//await EndreBatplassStorrelser(page, marinaUrl);
+
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
@@ -160,9 +159,10 @@ static async Task EndrePlassVerdier(IPage page, string marinaUrl, string plass, 
 		Console.WriteLine($"Fant ikke båtplass {plass}");
 		return;
 	}
-	
+
 	//Console.WriteLine("Table with ID 'Main_grdv' exists inside <sw-panel>.");
-	await page.Locator("a", new PageLocatorOptions { HasTextString = plass }).ClickAsync();
+	//await page.Locator("a", new PageLocatorOptions { HasTextString = plass }).ClickAsync();
+	await page.Locator("a").Locator($"text=\"{plass}\"").ClickAsync();
 	
 	var endreButton = page.Locator("input[type='button'][value='Endre']");
 	await endreButton.ClickAsync();

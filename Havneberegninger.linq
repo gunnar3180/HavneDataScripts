@@ -117,8 +117,8 @@ void FinnPlasserUnder2500(HavneData havn)
 	var smaPlasser = new List<BatPlass>();
 	foreach (var plass in plasser)
 	{
-		var lengde = ((double)plass.BatLengde) / 100;
-		var bredde = ((double)plass.BatBredde) / 100;
+		var lengde = ((double)plass.Lengde) / 100;
+		var bredde = ((double)plass.Bredde) / 100;
 		
 		int beregnetAvgift = (int)Math.Round(bredde * lengde * plass.PrisFaktor(lengde));
 		if (beregnetAvgift < 2500)
@@ -140,7 +140,7 @@ void SjekkVareVarianter(HavneData havn)
 	var plasser = havn.GetAndelsPlasser().Concat(havn.GetSesongPlasser());
 	foreach (var plass in plasser)
 	{
-		var lengde = ((double)plass.BatLengde) / 100;
+		var lengde = ((double)plass.Lengde) / 100;
 		var beregnetVareVariant = VareVariant.Create(lengde);
 		if (plass.VareVariant.Size != beregnetVareVariant.Size)
 		{
@@ -274,11 +274,10 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn)
 void VisLedigePlasser(HavneData havn)
 {
 	var ledige = havn.GetLedigePlasser();
-	var sortert = ledige.OrderBy(l => l.LysApning);
+	var sortert = ledige.OrderBy(l => l.Bredde);
 	foreach (var plass in sortert)
 	{
-		var bredde = plass.LysApning > 0 ? (double)plass.LysApning / 100 : 0;
-		Console.WriteLine($"{plass.PlassId}: {bredde} m");
+		Console.WriteLine($"{plass.PlassId}: {plass.Bredde} m");
 	}
 }
 
@@ -311,7 +310,7 @@ void BeregnBatplassAvgifter(HavneData havneData)
 	{
 		var batplassAvgift = plass.BeregnBatplassAvgift();
 		totalFakturering += batplassAvgift;
-		Console.WriteLine($"{plass.PlassId}: {(plass.Leier ?? plass.Eier),-30} (BxL: {plass.BatBredde}x{plass.BatLengde}) kr. {batplassAvgift:n}");
+		Console.WriteLine($"{plass.PlassId}: {(plass.Leier ?? plass.Eier),-30} (BxL: {plass.Bredde}x{plass.Lengde}) kr. {batplassAvgift:n}");
 	}
 
 	Console.WriteLine($"\nTotal fakturering av båtplassavgifter i 2025: kr. {totalFakturering:n}");
@@ -360,12 +359,12 @@ void VisArealForskjeller(HavneData havn1, HavneData havn2)
 			var bruker2 = plass2.Leier ?? plass2.Eier;
 			if (bruker1 == bruker2 && bruker1 != null)
 			{
-				if (plass1.BatBredde.Ulik(plass2.BatBredde) || plass1.BatLengde.Ulik(plass2.BatLengde))
+				if (plass1.Bredde.Ulik(plass2.Bredde) || plass1.Lengde.Ulik(plass2.Lengde))
 				{
-					var bredde1 = ((double)plass1.BatBredde / 100).ToString("0.00");
-					var lengde1 = ((double)plass1.BatLengde / 100).ToString("0.00");
-					var bredde2 = ((double)plass2.BatBredde / 100).ToString("0.00");
-					var lengde2 = ((double)plass2.BatLengde / 100).ToString("0.00");
+					var bredde1 = ((double)plass1.Bredde / 100).ToString("0.00");
+					var lengde1 = ((double)plass1.Lengde / 100).ToString("0.00");
+					var bredde2 = ((double)plass2.Bredde / 100).ToString("0.00");
+					var lengde2 = ((double)plass2.Lengde / 100).ToString("0.00");
 					Console.WriteLine($"\n{plass1.PlassId}: {bruker1,-20}BxL ({bredde1} x {lengde1}) - ({bredde2} x {lengde2}) - {plass1.batType}");
 				}
 			}
@@ -594,27 +593,18 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 	}
 
 	Console.WriteLine($"\n{ledigePlasser.Count} ledige plasser");
-	var lysListe = new List<(string, string)>();
+	var breddeListe = new List<(string, string)>();
 
 	foreach (var plass in ledigePlasser)
 	{
-		Console.Write($"{plass.PlassId}");
-		int lysApning = plass.LysApning;
-		if (lysApning > 0)
-		{
-			var lysApningMeter = ((double)lysApning / 100).ToString("0.00");
-			Console.WriteLine($": {lysApningMeter} m");
-			lysListe.Add((plass.PlassId, lysApningMeter));
-		}
-		else
-		{
-			Console.WriteLine();
-		}
+		var breddeMeter = (plass.Bredde / 100.0).ToString();
+		Console.WriteLine($"{plass.PlassId}: {breddeMeter} m");
+		breddeListe.Add((plass.PlassId, breddeMeter));
 	}
 	
-	var sortert = lysListe.OrderBy(l => l.Item2);
+	var sortert = breddeListe.OrderBy(l => l.Item2);
 	
-	Console.WriteLine("\nLedige plasser sortert på lysåpning:");
+	Console.WriteLine("\nLedige plasser sortert på bredde:");
 	foreach (var plass in sortert)
 	{
 		Console.WriteLine($"{plass.Item1}: {plass.Item2} m");
@@ -665,8 +655,8 @@ void PrintVenteliste(string heading, IEnumerable<PlassSoker> venteliste)
 void PrintBatplass(BatPlass plass, bool visEier, MedlemsRegister medlemsRegister, string postfix = null)
 {
 	var bruker = visEier ? plass.Eier : plass.Leier;
-	var bredde = ((double)plass.BatBredde / 100).ToString("0.00");
-	var lengde = ((double)plass.BatLengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
+	var bredde = ((double)plass.Bredde / 100).ToString("0.00");
+	var lengde = ((double)plass.Lengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
 	
 	if (bruker == null)
 	{
@@ -682,9 +672,8 @@ void PrintBatplass(BatPlass plass, bool visEier, MedlemsRegister medlemsRegister
 	
 	var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
 	var eier = TilpassNavn(bruker);
-	var lysApning = plass.LysApning > 0 ? ((double)plass.LysApning / 100).ToString("0.00") : "---";
 	
-	Console.Write($"{plass.PlassId.Substring(0, 4)}: {eier,-25} {tlf,-13} BxL: {bredde} x {lengde}  LÅ: {lysApning}");
+	Console.Write($"{plass.PlassId.Substring(0, 4)}: {eier,-25} {tlf,-13} BxL: {bredde} x {lengde}");
 	
 	if (postfix != null)
 	{
@@ -698,21 +687,20 @@ void PrintBatplass(BatPlass plass, bool visEier, MedlemsRegister medlemsRegister
 
 void PrintBatplass2(BatPlass plass, MedlemsRegister medlemsRegister)
 {
-	var lysApning = plass.LysApning > 0 ? ((double)plass.LysApning / 100).ToString("0.00") : "---";
-	var bredde = ((double)plass.BatBredde / 100).ToString("0.00");
-	var lengde = ((double)plass.BatLengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
+	var bredde = ((double)plass.Bredde / 100).ToString("0.00");
+	var lengde = ((double)plass.Lengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
 	var bruker = plass.Leier ?? plass.Eier;
 	if (bruker == null)
 	{
 		if (plass.Reservert)
 		{
 			// Reservert plass
-			Console.WriteLine($"{plass.PlassId.Substring(0, 4)}: {"*** Reservert ***",-25} {"",-13}                    LÅ: {lysApning}");
+			Console.WriteLine($"{plass.PlassId.Substring(0, 4)}: *** Reservert ***");
 		}
 		else
 		{
 			// Ledig plass
-			Console.WriteLine($"{plass.PlassId.Substring(0, 4)}: {"*** Ledig ***",-25} {"",-13}                    LÅ: {lysApning}");
+			Console.WriteLine($"{plass.PlassId.Substring(0, 4)}: *** Ledig ***");
 		}
 		return;
 	}
@@ -755,7 +743,7 @@ void PrintBatplass2(BatPlass plass, MedlemsRegister medlemsRegister)
 	
 	var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
 	var eier = TilpassNavn(bruker);
-	Console.Write($"{plass.PlassId.Substring(0, 4)}: {eier,-25} {tlf,-13} BxL: {bredde} x {lengde}  LÅ: {lysApning}");
+	Console.Write($"{plass.PlassId.Substring(0, 4)}: {eier,-25} {tlf,-13} BxL: {bredde} x {lengde}");
 	
 	if (postfix != null)
 	{
@@ -787,9 +775,8 @@ public class BatPlass
 	public DateTime UtlevertFra { get; set; }
 	public DateTime UtLeidFra { get; set; }
 	public string Leier { get; set; }
-	public int BatBredde { get; set; }
-	public int BatLengde { get; set; }
-	public int LysApning { get; set; }
+	public int Bredde { get; set; }
+	public int Lengde { get; set; }
 	public int Innskudd { get; set; }
 	public bool SesongPlass { get; set; }
 	public bool UngdomsPlass { get; set; }
@@ -809,8 +796,8 @@ public class BatPlass
 			return 1000;
 		}
 
-		double bredde = (double)BatBredde / 100;
-		double lengde = (double)BatLengde / 100;
+		double bredde = (double)Bredde / 100;
+		double lengde = (double)Lengde / 100;
 		int beregnetAvgift = (int)Math.Round(bredde * lengde * PrisFaktor(lengde));
 		if (beregnetAvgift < 2500)
 		{
@@ -983,7 +970,7 @@ public abstract class HavneData
 		var plass = GetBatPlass(plassId);
 		if (plass != null)
 		{
-			double lengde = (double)plass.BatLengde / 100;
+			double lengde = (double)plass.Lengde / 100;
 			var gruppe = FinnInnskuddGruppeFraLengde(lengde);
 			return (gruppe.Item3, gruppe.Item1);
 		}
@@ -1107,8 +1094,6 @@ public class StyreWebExport : HavneData
 		swMarinaDetaljertFil = Path.Combine(swExportFolder, "Marina_-_Detaljert.csv");
 		swFramleieFil = Path.Combine(swExportFolder, "Fremleie_historie.csv");
 		
-		var oppmaling = new LysApninger().Read();
-		
 		if (File.Exists(swMarinaDetaljertFil))
 		{
 			using (var reader = new StreamReader(swMarinaDetaljertFil, Encoding.GetEncoding("UTF-8")))
@@ -1177,8 +1162,8 @@ public class StyreWebExport : HavneData
 						PlassId = plassId,
 						Eier = eier,
 						UtlevertFra = utlevertFra,
-						BatBredde = breddeCm,
-						BatLengde = lengdeCm,
+						Bredde = breddeCm,
+						Lengde = lengdeCm,
 						SesongPlass = sesongPlass,
 						UngdomsPlass = ungdomsPlass,
 						JollePlass = jollePlass,
@@ -1187,8 +1172,7 @@ public class StyreWebExport : HavneData
 						Reservert = reservert,
 						LandOpplag = landOpplag,
 						VareVariant = vareVariant,
-						Innskudd = innskuddKr,
-						LysApning = oppmaling.GetLysApning(plassId)
+						Innskudd = innskuddKr
 					};
 				}
 			}
@@ -1516,8 +1500,8 @@ public class ExcelExport : HavneData
 					PlassId = plassId,
 					Eier = eier,
 					Leier = leier,
-					BatBredde = breddeCm,
-					BatLengde = lengdeCm
+					Bredde = breddeCm,
+					Lengde = lengdeCm
 				};
 			}
 		}
@@ -1582,8 +1566,8 @@ public class HavneWebExport : HavneData
 						Eier = eier,
 						Innskudd = innskuddKr,
 						Leier = leier,
-						BatBredde = breddeCm,
-						BatLengde = lengdeCm,
+						Bredde = breddeCm,
+						Lengde = lengdeCm,
 						Vaktfritak = vaktFritak,
 						batType = batType
 					};
@@ -1592,53 +1576,6 @@ public class HavneWebExport : HavneData
 		}
 
 		return this;
-	}
-}
-
-public class LysApninger
-{
-	private string lysApningFil;
-	private Dictionary<string, int> BatPlasser { get; set; }
-
-	public LysApninger()
-	{
-		var workFolder = @"C:\Users\Solviken\OneDrive\Solviken\2025\Havnedatabasen";
-		lysApningFil = Path.Combine(workFolder, "LysApninger.csv");
-		BatPlasser = new Dictionary<string, int>();
-	}
-
-	public LysApninger Read()
-	{
-		using (var stream = new FileStream(lysApningFil, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-		{
-			using (var reader = new StreamReader(stream, Encoding.GetEncoding("ISO-8859-1")))
-			{
-				reader.ReadLine();      // Skip header
-				string line;
-				while ((line = reader.ReadLine()) != null)
-				{
-					var fields = line.Split(';');
-					var plassId = fields[0];
-					var lysApningString = fields[1];
-					if (double.TryParse(lysApningString, out var lysApning))
-					{
-						BatPlasser[plassId] = (int)Math.Round(lysApning * 100);	// Unit = cm
-					}
-				}
-			}
-		}
-		
-		return this;
-	}
-	
-	public int GetLysApning(string plassId)
-	{
-		if (BatPlasser.TryGetValue(plassId, out var lysApning))
-		{
-			return lysApning;
-		}
-		
-		return -1;
 	}
 }
 
