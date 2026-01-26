@@ -36,13 +36,14 @@ public static async Task Go()
 		Console.WriteLine("Logget inn");
 
 		// Do the job
-		await DownloadMarina(page, marinaUrl, downloadFolder);
-		await DownloadFramleie(page, framleieUrl, downloadFolder);
-		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
-		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
+		//await DownloadMarina(page, marinaUrl, downloadFolder);
+		//await DownloadFramleie(page, framleieUrl, downloadFolder);
+		//await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
+		//await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
 
 		//await EndreBatplassStorrelser(page, marinaUrl);
-
+		await EndreBatplassGrupper(page, marinaUrl);
+		
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
@@ -88,6 +89,66 @@ static async Task EndreBatplassStorrelser(IPage page, string marinaUrl)
 			}
 		}
 		//await EndrePlassVerdier(page, marinaUrl, "5V16", new List<(string, string)> { ("Bredde", "4,10"), ("Lengde", "10"), ("Dybde", "0") });
+	}
+}
+
+static async Task EndreBatplassGrupper(IPage page, string marinaUrl)
+{
+	var hwExportPath = @"C:\Users\Solviken\OneDrive\Solviken\2025\Havnedatabasen\SolvikenBtforening_311224_124226.csv";
+
+	using (var reader = new StreamReader(hwExportPath, Encoding.GetEncoding("UTF-8")))
+	{
+		reader.ReadLine();      // Skip header
+		string line;
+		while ((line = reader.ReadLine()) != null)
+		{
+			var fields = line.Trim().Split('\t');
+			if (fields.Length > 10)
+			{
+				var plassId = fields[2].Substring(0, 4);
+				var gruppe = fields[3];
+				if (Regex.IsMatch(plassId, @"^[2-6][VH]\d{2}$") &&
+					Regex.IsMatch(gruppe, "^[A-L]"))
+				{
+					await EndrePlassVerdier(page,
+											marinaUrl,
+											plassId,
+											new List<(string, string)>
+											{
+												("Sted", GetGruppeText(gruppe[0])),
+											});
+				}
+
+
+			}
+		}
+	}
+}
+
+static string GetGruppeText(char gruppe)
+{
+	switch (gruppe)
+	{
+		case 'A':
+			return "Gruppe A: inntil 5,4 m";
+		case 'B':
+			return "Gruppe B: 5,5 - 7,0 m";
+		case 'C':
+			return "Gruppe C: 7,1 – 8,7 m";
+		case 'D':
+			return "Gruppe D: 8,8 – 9,1 m";
+		case 'E':
+			return "Gruppe E: 9,2 – 10,0 m";
+		case 'F':
+			return "Gruppe F: 10,1 – 10,6 m";
+		case 'G':
+			return "Gruppe G: 10,7 – 11,8 m";
+		case 'H':
+			return "Gruppe H: 11,9 – 12,4 m";
+		case 'L':
+			return "Gruppe L: 12,5 – 13,7 m";
+		default:
+			return "";
 	}
 }
 
@@ -162,7 +223,15 @@ static async Task EndrePlassVerdier(IPage page, string marinaUrl, string plass, 
 
 	//Console.WriteLine("Table with ID 'Main_grdv' exists inside <sw-panel>.");
 	//await page.Locator("a", new PageLocatorOptions { HasTextString = plass }).ClickAsync();
-	await page.Locator("a").Locator($"text=\"{plass}\"").ClickAsync();
+	var plassLenke = page.Locator("a").Locator($"text=\"{plass}\"");
+	int hits = await plassLenke.CountAsync();
+	if (hits == 0)
+	{
+		Console.WriteLine($"Fant ikke båtplass {plass} i StyreWeb, hopper over");
+		return;
+	}
+	
+	await plassLenke.ClickAsync();
 	
 	var endreButton = page.Locator("input[type='button'][value='Endre']");
 	await endreButton.ClickAsync();
@@ -170,14 +239,25 @@ static async Task EndrePlassVerdier(IPage page, string marinaUrl, string plass, 
 	foreach (var verdi in verdier)
 	{
 		var verdiId = GetEditFieldId(verdi.Item1);
-		if (verdiId == null)
+		if (verdiId != null)
 		{
-			Console.WriteLine($"{plass}: Fant ikke felt {verdi.Item1}");
-			continue;
+			await page.Locator($"#{verdiId}").FillAsync(verdi.Item2);
+			Console.WriteLine($"{plass}: {verdi.Item1} = {verdi.Item2}");
 		}
-
-		await page.Locator($"#{verdiId}").FillAsync(verdi.Item2);
-		Console.WriteLine($"{plass}: {verdi.Item1} = {verdi.Item2}");
+		else
+		{
+			var select = page.Locator($"select[title='{verdi.Item1}']");
+			if (select != null)
+			{
+				await select.SelectOptionAsync(new SelectOptionValue { Label = verdi.Item2 });
+				Console.WriteLine($"{plass}: {verdi.Item1} = {verdi.Item2}");
+			}
+			else
+			{
+				Console.WriteLine($"{plass}: Fant ikke felt {verdi.Item1}");
+				continue;
+			}
+		}
 	}
 
 	var lagreButton = page.Locator("input[type='submit'][value='Lagre']");
