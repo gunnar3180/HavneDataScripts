@@ -36,13 +36,13 @@ public static async Task Go()
 		Console.WriteLine("Logget inn");
 
 		// Do the job
-		//await DownloadMarina(page, marinaUrl, downloadFolder);
-		//await DownloadFramleie(page, framleieUrl, downloadFolder);
-		//await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
-		//await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
+		await DownloadMarina(page, marinaUrl, downloadFolder);
+		await DownloadFramleie(page, framleieUrl, downloadFolder);
+		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
+		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
 
 		//await EndreBatplassStorrelser(page, marinaUrl);
-		await EndreBatplassGrupper(page, marinaUrl);
+		//await EndreBatplassGrupper(page, marinaUrl);
 		
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();

@@ -34,6 +34,25 @@ void Main()
 	//FinnPlasserUnder2500(new StyreWebExport().LesData());
 	//FinnEierEndringerEtter(DateTime.Parse("20.06.2025"), new StyreWebExport().LesData());
 	//FinnSesongLeiereFraAndelsplass(new StyreWebExport().LesData());
+	//SammenlignGrupper(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+}
+
+void SammenlignGrupper(HavneData havn1, HavneData havn2)
+{
+	foreach (var plass1 in havn1.GetAllePlasser().Where(p => !p.LandOpplag))
+	{
+		var plass2 = havn2.GetBatPlass(plass1.PlassId);
+		if (plass2 == null)
+		{
+			Console.WriteLine($"{plass1.PlassId} er ikke i {havn2.Navn}");
+			continue;
+		}
+		
+		if (plass1.Gruppe != plass2.Gruppe)
+		{
+			Console.WriteLine($"Forskjellig gruppe for {plass1.PlassId}: {havn1.Navn}: '{plass1.Gruppe}', {havn2.Navn}: '{plass2.Gruppe}'");
+		}
+	}
 }
 
 void FinnSesongLeiereFraAndelsplass(HavneData havn)
@@ -593,13 +612,32 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 	}
 
 	Console.WriteLine($"\n{ledigePlasser.Count} ledige plasser");
-	var breddeListe = new List<(string, string)>();
+	var breddeListe = new List<(string, string, char)>();
+	var ledigePrGruppe = new Dictionary<char, int>
+	{
+		{'A', 0},
+		{'B', 0},
+		{'C', 0},
+		{'D', 0},
+		{'E', 0},
+		{'F', 0},
+		{'G', 0},
+		{'H', 0},
+		{'L', 0},
+	};
 
 	foreach (var plass in ledigePlasser)
 	{
 		var breddeMeter = (plass.Bredde / 100.0).ToString();
-		Console.WriteLine($"{plass.PlassId}: {breddeMeter} m");
-		breddeListe.Add((plass.PlassId, breddeMeter));
+		Console.WriteLine($"{plass.PlassId}: {breddeMeter,10} m     Gruppe {plass.Gruppe}");
+		breddeListe.Add((plass.PlassId, breddeMeter, plass.Gruppe));
+		ledigePrGruppe[plass.Gruppe]++;
+	}
+	
+	Console.WriteLine("\nLedige plasser pr. gruppe:");
+	foreach (var ledige in ledigePrGruppe)
+	{
+		Console.WriteLine($"{ledige.Key}: {ledige.Value}");
 	}
 	
 	var sortert = breddeListe.OrderBy(l => l.Item2);
@@ -607,7 +645,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 	Console.WriteLine("\nLedige plasser sortert på bredde:");
 	foreach (var plass in sortert)
 	{
-		Console.WriteLine($"{plass.Item1}: {plass.Item2} m");
+		Console.WriteLine($"{plass.Item1}: {plass.Item2, 10} m     Gruppe {plass.Item3}");
 	}
 
 	Console.WriteLine($"\n *** Venteliste ({venteListe.Count()}) ***\n");
@@ -777,6 +815,7 @@ public class BatPlass
 	public string Leier { get; set; }
 	public int Bredde { get; set; }
 	public int Lengde { get; set; }
+	public char Gruppe { get; set; }
 	public int Innskudd { get; set; }
 	public bool SesongPlass { get; set; }
 	public bool UngdomsPlass { get; set; }
@@ -1107,6 +1146,7 @@ public class StyreWebExport : HavneData
 					var plassType = fields[2];
 					var breddeMeter = fields[3];
 					var lengdeMeter = fields[4];
+					var gruppe = fields[7];
 					var innskudd = fields[8];
 					DateTime utlevertFra;
 					if (DateTime.TryParse(fields[13], out var time))
@@ -1172,6 +1212,7 @@ public class StyreWebExport : HavneData
 						Reservert = reservert,
 						LandOpplag = landOpplag,
 						VareVariant = vareVariant,
+						Gruppe = gruppe.Length > 0 ? gruppe[0] : ' ',
 						Innskudd = innskuddKr
 					};
 				}
@@ -1537,9 +1578,10 @@ public class HavneWebExport : HavneData
 					var plassId = fields[2].Split(' ')[0];
 					var eier = NavnExcel2StyreWeb(fields[14].Trim());
 					var leier = fields[21].Trim();
-					var innskudd = fields[9];
+					var gruppe = fields[3];
 					var breddeMeter = fields[4];
 					var lengdeMeter = fields[5];
+					var innskudd = fields[9];
 					var vaktFritak = fields[11] == "on" ? "Fritak" : null;
 					var batType = leier != string.Empty ? fields[24] : fields[17];
 					int breddeCm = 0;
@@ -1563,6 +1605,7 @@ public class HavneWebExport : HavneData
 					BatPlasser[plassId] = new BatPlass
 					{
 						PlassId = plassId,
+						Gruppe = gruppe.Length > 0 ? gruppe[0] : ' ',
 						Eier = eier,
 						Innskudd = innskuddKr,
 						Leier = leier,
