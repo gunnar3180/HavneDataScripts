@@ -43,7 +43,30 @@ public static async Task Go()
 
 		//await EndreBatplassStorrelser(page, marinaUrl);
 		//await EndreBatplassGrupper(page, marinaUrl);
-		
+
+		//string[] ledigePlasser = {"4V02","4V13","4V18","4V19","4V20","4V21","4V22","4V23","4V27","4V45","4V47","4V48","4V49","4V53","4V56","4V60","4V72","6H09"};
+		//foreach (var plass in ledigePlasser)
+		//{
+		//	await LeverInnBatplass(page, marinaUrl, plass);
+		//}
+
+		//List<(string, string)> ungdomsListe = new List<(string, string)>
+		//{
+		//	("4V14", "Vibecke Grønli"),
+		//	("4V29", "Otto Martin Frotvedt"),
+		//	("4V50", "Thale Binder Kalvik"),
+		//	("4V51", "Jan Pavel Blazek"),
+		//	("4V52", "Veronica Binder Kalvik"),
+		//	("4V55", "Frode Kristiansen"),
+		//	("4V59", "Christian Jensen"),
+		//	("4V61", "Kirsten Sjong"),
+		//};
+		//
+		//foreach (var plass in ungdomsListe)
+		//{
+		//	await FramLeieTilEier(page, marinaUrl, plass.Item1, plass.Item2);
+		//}
+
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
@@ -283,6 +306,100 @@ static string GetEditFieldId(string fieldName)
 	return null;
 }
 
+static async Task FramLeieTilEier(IPage page, string marinaUrl, string plass, string eier)
+{
+	await page.GotoAsync(marinaUrl);
+	var inputField = page.Locator("#LeftNavBar_txtSerieNr");
+	await inputField.FillAsync(plass);
+	await page.ClickAsync("button:has-text(\"Søk\")");
+
+	var tableLocator = page.Locator("sw-panel#pnlMain table#Main_grdv");
+	try
+	{
+		await tableLocator.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+	}
+	catch (Exception)
+	{
+		Console.WriteLine($"Fant ikke båtplass {plass}");
+		return;
+	}
+
+	//Console.WriteLine("Table with ID 'Main_grdv' exists inside <sw-panel>.");
+	//await page.Locator("a", new PageLocatorOptions { HasTextString = plass }).ClickAsync();
+	var plassLenke = page.Locator("a").Locator($"text=\"{plass}\"");
+	int hits = await plassLenke.CountAsync();
+	if (hits == 0)
+	{
+		Console.WriteLine($"Fant ikke båtplass {plass} i StyreWeb, hopper over");
+		return;
+	}
+
+	await plassLenke.ClickAsync();
+	
+	await page
+		.Locator("#Main_grdvMembersSublet tbody tr:first-child a")
+		.First
+		.ClickAsync();
+
+	// Klikk på endre
+	var endreButton = page.Locator("input[type='button'][value='Endre']");
+	await endreButton.ClickAsync();
+
+	// Sett Til dato 29.01.2026
+	var tilDato = page.Locator("#Main_detailGenericArchiveMember_txtEndDate");
+	await tilDato.FillAsync("29.01.2026");
+
+	// Klikk på lagre
+	var lagreButton = page.Locator("input[type='submit'][value='Lagre']");
+	await lagreButton.ClickAsync();
+	Console.WriteLine($"{plass}: Avsluttet framleie fra {eier}");
+
+	// Klikk på "<<"
+	await page.GetByText("<<").ClickAsync();
+
+	// Klikk på "Lever inn"
+	var leverInn = page.Locator("#Main_btnDeliverIn");
+	await leverInn.ClickAsync();
+
+	// Sett til data 29.01.2026
+	tilDato = page.Locator("#Main_detailGenericArchiveMember_txtEndDate");
+	await tilDato.FillAsync("29.01.2026");
+
+	// Klikk på lagre
+	lagreButton = page.Locator("input[type='submit'][value='Lagre']");
+	await lagreButton.ClickAsync();
+	Console.WriteLine($"{plass}: Levert inn, slettet Solviken som eier");
+
+	// Klikk på "<<"
+	await page.GetByText("<<").ClickAsync();
+
+	// Klikk på "Lever ut"
+	var leverUt = page.Locator("#Main_btnDeliverOut");
+	await leverUt.ClickAsync();
+
+	// Sett medlem
+	var medlemSelect = page.Locator("#Main_detailGenericArchiveMember_cboAccDebit");
+	await medlemSelect.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+	var medlemOptions = page.Locator("#Main_detailGenericArchiveMember_cboAccDebit option");
+
+	var options = await medlemOptions.AllInnerTextsAsync();
+	string label = options.First(o => o.StartsWith(eier));
+	await medlemSelect.SelectOptionAsync(label);
+
+	// Sett fra dato
+	var fraDato = page.Locator("#Main_detailGenericArchiveMember_txtStartDate");
+	await fraDato.FillAsync("30.01.2026");
+
+	// Velg vare variant "> 7,2 m båtlengde"
+	var vareVariant = page.Locator("#Main_detailGenericArchiveMember_cboProductVariant");
+	await vareVariant.SelectOptionAsync("> 7,2 m båtlengde");
+
+	// Klikk på "Opprett"
+	await page.GetByText("Opprett").ClickAsync();
+	Console.WriteLine($"{plass}: Satt {eier} som nye eier av plassen\n");
+}
+		
+
 static async Task DownloadMarina(IPage page, string marinaUrl, string downloadFolder)
 {
 	await page.GotoAsync(marinaUrl);
@@ -342,6 +459,46 @@ static async Task LagOpplagsplass(IPage page, string marinaUrl, string felt, int
 	await page.GetByText("<< Marina").ClickAsync();
 
 	Console.WriteLine($"Opprettet opplagsplass {felt}{nummer.ToString("d2")} på felt {seksjon}");
+}
+
+static async Task LeverInnBatplass(IPage page, string marinaUrl, string plass)
+{
+	await page.GotoAsync(marinaUrl);
+	var inputField = page.Locator("#LeftNavBar_txtSerieNr");
+	await inputField.FillAsync(plass);
+	await page.ClickAsync("button:has-text(\"Søk\")");
+
+	var tableLocator = page.Locator("sw-panel#pnlMain table#Main_grdv");
+	try
+	{
+		await tableLocator.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+	}
+	catch (Exception)
+	{
+		Console.WriteLine($"Fant ikke båtplass {plass}");
+		return;
+	}
+
+	//Console.WriteLine("Table with ID 'Main_grdv' exists inside <sw-panel>.");
+	//await page.Locator("a", new PageLocatorOptions { HasTextString = plass }).ClickAsync();
+	var plassLenke = page.Locator("a").Locator($"text=\"{plass}\"");
+	int hits = await plassLenke.CountAsync();
+	if (hits == 0)
+	{
+		Console.WriteLine($"Fant ikke båtplass {plass} i StyreWeb, hopper over");
+		return;
+	}
+
+	await plassLenke.ClickAsync();
+	var leverInn = page.Locator("#Main_btnDeliverIn");
+	await leverInn.ClickAsync();
+	var tilDato = page.Locator("#Main_detailGenericArchiveMember_txtEndDate");
+	var today = DateTime.Now.ToString("d.MM.yyyy");
+	await tilDato.FillAsync(today);
+	
+	var lagreButton = page.Locator("input[type='submit'][value='Lagre']");
+	await lagreButton.ClickAsync();
+	Console.WriteLine($"Levert inn {plass}");
 }
 
 static async Task VisRapportOgLastNed(IPage page, string savePath)

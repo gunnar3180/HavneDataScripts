@@ -634,18 +634,18 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 		ledigePrGruppe[plass.Gruppe]++;
 	}
 	
-	Console.WriteLine("\nLedige plasser pr. gruppe:");
-	foreach (var ledige in ledigePrGruppe)
-	{
-		Console.WriteLine($"{ledige.Key}: {ledige.Value}");
-	}
-	
 	var sortert = breddeListe.OrderBy(l => l.Item2);
 	
 	Console.WriteLine("\nLedige plasser sortert på bredde:");
 	foreach (var plass in sortert)
 	{
 		Console.WriteLine($"{plass.Item1}: {plass.Item2, 10} m     Gruppe {plass.Item3}");
+	}
+
+	Console.WriteLine("\nLedige plasser pr. gruppe:");
+	foreach (var ledige in ledigePrGruppe)
+	{
+		Console.WriteLine($"{ledige.Key}: {ledige.Value}");
 	}
 
 	Console.WriteLine($"\n *** Venteliste ({venteListe.Count()}) ***\n");
