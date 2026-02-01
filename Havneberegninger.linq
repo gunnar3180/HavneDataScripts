@@ -584,6 +584,13 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 		PrintBatplass(plass, true, medlemsRegister);
 	}
 
+	Console.WriteLine($"\n{framleiePlasser.Count} framleide plasser");
+	foreach (var plass in framleiePlasser)
+	{
+		var eier = $"(fra {plass.Eier})";
+		PrintBatplass(plass, false, medlemsRegister, eier);
+	}
+
 	Console.WriteLine($"\n{sesongplasser.Count} sesongplasser");
 	foreach (var plass in sesongplasser)
 	{
@@ -598,13 +605,6 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 			// 2026-style, sesongplass ikke framleie
 			PrintBatplass(plass, true, medlemsRegister, null);
 		}
-	}
-
-	Console.WriteLine($"\n{framleiePlasser.Count} framleide plasser");
-	foreach (var plass in framleiePlasser)
-	{
-		var eier = $"(fra {plass.Eier})";
-		PrintBatplass(plass, false, medlemsRegister, eier);
 	}
 
 	Console.WriteLine($"\n{ungdomsplasser.Count} ungdomsplasser");
@@ -1207,16 +1207,16 @@ public class StyreWebExport : HavneData
 						lengdeCm = (int)Math.Round(lengde * 100);
 					}
 
-					var andelsPlass = (plassType == "Andelsplass");
 					var sesongPlass = (plassType == "Sesongplass");
 					var framleiePlass = (plassType == "Framleie");
-					var ungdomsPlass = (plassType == "Ungdomsplass");
+					var ungdomsPlass = (plassType == "Ungdomsplass");		// Denne skal vekk i 2026
 					var jollePlass = (plassType == "Jolleplass");
-					var lanePlass = (plassType == "Låneplass");
+					var lanePlass = (plassType == "Låneplass");				// Framleie for en periode, eier betaler, framleier ikke
 					var reservert = (plassType == "Reservert");
 					var tilLeie = (plassType == "Til leie");
 					var landOpplag = (plassType == "Landopplag");
-					
+					var andelsPlass = (plassType == "Andelsplass") || framleiePlass || lanePlass || tilLeie;
+
 					int innskuddKr = -1;
 					if (innskudd.Length > 0)
 					{
