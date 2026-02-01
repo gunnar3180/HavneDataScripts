@@ -536,6 +536,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 {
 	var andelsplasser = dataSet.GetAndelsPlasser();
 	var sesongplasser = dataSet.GetSesongPlasser();
+	var framleiePlasser = dataSet.GetFramleiePlasser();
 	var ungdomsplasser = dataSet.GetUngdomsPlasser();
 	var jollePlasser = dataSet.GetJollePlasser();
 	var tilLeiePlasser = dataSet.GetTilLeiePlasser();
@@ -586,22 +587,40 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 	Console.WriteLine($"\n{sesongplasser.Count} sesongplasser");
 	foreach (var plass in sesongplasser)
 	{
-		var eier = plass.Eier != null ? $"(fra {plass.Eier})" : null;
+		if (plass.Leier != null)
+		{
+			// 2025-style marina, sesongplass er framleie
+			var eier = plass.Eier != null ? $"(fra {plass.Eier})" : null;
+			PrintBatplass(plass, false, medlemsRegister, eier);
+		}
+		else
+		{
+			// 2026-style, sesongplass ikke framleie
+			PrintBatplass(plass, true, medlemsRegister, null);
+		}
+	}
+
+	Console.WriteLine($"\n{framleiePlasser.Count} framleide plasser");
+	foreach (var plass in framleiePlasser)
+	{
+		var eier = $"(fra {plass.Eier})";
 		PrintBatplass(plass, false, medlemsRegister, eier);
 	}
 
 	Console.WriteLine($"\n{ungdomsplasser.Count} ungdomsplasser");
 	foreach (var plass in ungdomsplasser)
 	{
-		var tlf = medlemsRegister.Medlemmer[plass.Leier].Tlf;
-		Console.WriteLine($"{plass.PlassId}: {plass.Leier,-25} {tlf,-13}");
+		var bruker = plass.Leier ?? plass.Eier;
+		var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
+		Console.WriteLine($"{plass.PlassId}: {bruker,-25} {tlf,-13}");
 	}
 
 	Console.WriteLine($"\n{jollePlasser.Count} jolleplasser");
 	foreach (var plass in jollePlasser)
 	{
-		var tlf = medlemsRegister.Medlemmer[plass.Leier].Tlf;
-		Console.WriteLine($"{plass.PlassId}: {plass.Leier,-25} {tlf,-13}");
+		var bruker = plass.Leier ?? plass.Eier;
+		var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
+		Console.WriteLine($"{plass.PlassId}: {bruker,-25} {tlf,-13}");
 	}
 
 	// Til leie-plasser
@@ -817,7 +836,9 @@ public class BatPlass
 	public int Lengde { get; set; }
 	public char Gruppe { get; set; }
 	public int Innskudd { get; set; }
+	public bool AndelsPlass { get; set; }
 	public bool SesongPlass { get; set; }
+	public bool FramleiePlass { get; set; }
 	public bool UngdomsPlass { get; set; }
 	public bool JollePlass { get; set; }
 	public bool LanePlass { get; set; }
@@ -914,14 +935,17 @@ public abstract class HavneData
 	
 	public List<BatPlass> GetAndelsPlasser()
 	{
-		return BatPlasser.Values.Where(v => v.Eier != null)
-		.Except(GetLandOpplagsPlasser())
-		.ToList();
+		return BatPlasser.Values.Where(v => v.AndelsPlass).ToList();
 	}
-	
+
 	public List<BatPlass> GetSesongPlasser()
 	{
 		return BatPlasser.Values.Where(v => v.SesongPlass).ToList();
+	}
+
+	public List<BatPlass> GetFramleiePlasser()
+	{
+		return BatPlasser.Values.Where(v => v.FramleiePlass).ToList();
 	}
 
 	public List<BatPlass> GetUngdomsPlasser()
@@ -1183,7 +1207,9 @@ public class StyreWebExport : HavneData
 						lengdeCm = (int)Math.Round(lengde * 100);
 					}
 
+					var andelsPlass = (plassType == "Andelsplass");
 					var sesongPlass = (plassType == "Sesongplass");
+					var framleiePlass = (plassType == "Framleie");
 					var ungdomsPlass = (plassType == "Ungdomsplass");
 					var jollePlass = (plassType == "Jolleplass");
 					var lanePlass = (plassType == "Låneplass");
@@ -1204,7 +1230,9 @@ public class StyreWebExport : HavneData
 						UtlevertFra = utlevertFra,
 						Bredde = breddeCm,
 						Lengde = lengdeCm,
+						AndelsPlass = andelsPlass,
 						SesongPlass = sesongPlass,
+						FramleiePlass = framleiePlass,
 						UngdomsPlass = ungdomsPlass,
 						JollePlass = jollePlass,
 						LanePlass = lanePlass,
@@ -1247,6 +1275,7 @@ public class StyreWebExport : HavneData
 								}
 
 								if (!(batPlass.SesongPlass
+										|| batPlass.FramleiePlass
 										|| batPlass.UngdomsPlass
 										|| batPlass.JollePlass
 										|| batPlass.LanePlass))

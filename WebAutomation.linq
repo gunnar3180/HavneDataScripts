@@ -49,17 +49,17 @@ public static async Task Go()
 		//{
 		//	await LeverInnBatplass(page, marinaUrl, plass);
 		//}
+		
+		//foreach (var plass in new string[] {"2V09","2H09","4V03","4V04","4V08","4V14","4V29","4V50","4V51","4V52","4V55","4V59","4V61"})
+		//{
+		//	await EndrePlassVerdier(page, marinaUrl, plass, new List<(string,string)> {("Type", "Ungdomsplass")});
+		//}
 
 		//List<(string, string)> ungdomsListe = new List<(string, string)>
 		//{
-		//	("4V14", "Vibecke Grønli"),
-		//	("4V29", "Otto Martin Frotvedt"),
-		//	("4V50", "Thale Binder Kalvik"),
-		//	("4V51", "Jan Pavel Blazek"),
-		//	("4V52", "Veronica Binder Kalvik"),
-		//	("4V55", "Frode Kristiansen"),
-		//	("4V59", "Christian Jensen"),
-		//	("4V61", "Kirsten Sjong"),
+		//	("2V13", "Håkon Skatvedt"),
+		//	("5H02", "Marius Noss Gundersen"),
+		//	("5V02", "Erik Fadnes Gregersen"),
 		//};
 		//
 		//foreach (var plass in ungdomsListe)
@@ -67,8 +67,29 @@ public static async Task Go()
 		//	await FramLeieTilEier(page, marinaUrl, plass.Item1, plass.Item2);
 		//}
 
+		//await SettAndelsplasser(page, marinaUrl);
+
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
+	}
+}
+
+static async Task SettAndelsplasser(IPage page, string marinaUrl)
+{
+	var statusFil = @"C:\Users\Solviken\OneDrive\Solviken\2025\Havnedatabasen\Status før 2026-sesongen.txt";
+	using (var reader = new StreamReader(statusFil))
+	{
+		string line;
+		reader.ReadLine();
+		reader.ReadLine();
+		line = reader.ReadLine();
+		int count = int.Parse(line.Split(' ')[0]);
+		for (int i = 0; i < count; i++)
+		{
+			line = reader.ReadLine();
+			var plass = line.Split(':')[0];
+			await EndrePlassVerdier(page, marinaUrl, plass, new List<(string, string)> {("Type", "Andelsplass")});
+		}
 	}
 }
 
