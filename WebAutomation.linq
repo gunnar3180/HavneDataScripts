@@ -40,6 +40,7 @@ public static async Task Go()
 		await DownloadFramleie(page, framleieUrl, downloadFolder);
 		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
 		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
+		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Innskudd uten båt");
 
 		//await EndreBatplassStorrelser(page, marinaUrl);
 		//await EndreBatplassGrupper(page, marinaUrl);
@@ -68,9 +69,47 @@ public static async Task Go()
 		//}
 
 		//await SettAndelsplasser(page, marinaUrl);
+		
+		//await ByttPlassSide(page, marinaUrl, downloadFolder);
 
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
+	}
+}
+
+static async Task ByttPlassSide(IPage page, string marinaUrl, string downloadFolder)
+{
+	var marinaFile = Path.Combine(downloadFolder, "Marina.csv");
+	using (var reader = new StreamReader(marinaFile))
+	{
+		string line;
+		while ((line = reader.ReadLine()) != null)
+		{
+			var fields = line.Split('\t');
+			if (fields.Length > 2)
+			{
+				var plass = fields[1];
+				if (plass.Length >= 4)
+				{
+					var plassSide = plass[1];
+					string nySide;
+					if (plassSide == 'H')
+					{
+						nySide = "Venstre";
+					}
+					else if (plassSide == 'V')
+					{
+						nySide = "Høyre";
+					}
+					else
+					{
+						continue;
+					}
+					
+					await EndrePlassVerdier(page, marinaUrl, plass, new List<(string, string)> { ("Side av seksjon", nySide) });
+				}
+			}
+		}
 	}
 }
 
@@ -242,7 +281,8 @@ static async Task DownloadGruppering(IPage page, string grupperingUrl, string do
 	var downloadTask = page.WaitForDownloadAsync();
 	await page.ClickAsync("button:has-text(\"Eksport\")");
 	var download = await downloadTask;
-	var savePath = Path.Combine(downloadFolder, $"Gruppe{gruppering}.xlsx");
+	var saveFile = gruppering.Replace(' ', '_');
+	var savePath = Path.Combine(downloadFolder, $"Gruppe{saveFile}.xlsx");
 	await download.SaveAsAsync(savePath);
 	Console.WriteLine($"Lastet ned {savePath}");
 }

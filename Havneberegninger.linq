@@ -541,7 +541,8 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 	var jollePlasser = dataSet.GetJollePlasser();
 	var tilLeiePlasser = dataSet.GetTilLeiePlasser();
 	var ledigePlasser = dataSet.GetLedigePlasser();
-	var venteListe = dataSet.VenteListe;
+	var batplassVenteListe = dataSet.BatplassVenteliste;
+	var innskuddVenteliste = dataSet.InnskuddVenteliste;
 	var medlemsRegister = new MedlemsRegister().LesData();
 	StreamWriter writer = null;
 	
@@ -667,14 +668,23 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 		Console.WriteLine($"{ledige.Key}: {ledige.Value}");
 	}
 
-	Console.WriteLine($"\n *** Venteliste ({venteListe.Count()}) ***\n");
+	Console.WriteLine($"\n*** Innskudd som ikke er tilbakebetalt ({innskuddVenteliste.Count()}) ***\n");
+	Console.WriteLine("Medlem                    Plass    Innskudd     Ønsker tilbakebetaling");
+	Console.WriteLine("--------------------------------------------------------------------------");
+	
+	foreach (var innskudd in innskuddVenteliste)
+	{
+		Console.WriteLine($"{innskudd.Navn,-25} {innskudd.PlassId} {innskudd.Innskudd,10}        {(innskudd.Utbetales ? "J" : "N")}");
+	}
+
+	Console.WriteLine($"\n*** Venteliste ({batplassVenteListe.Count()}) ***\n");
 	Console.WriteLine("Medlem                    Plass      Bredde     Lengde     Båt                  Dager      Gruppe");
 	Console.WriteLine("-------------------------------------------------------------------------------------------------------");
 	
-	var pri1Plasser = venteListe.Where(p => p.PlassType == PlassType.AndelBytte).OrderBy(p => p.FraTid);
+	var pri1Plasser = batplassVenteListe.Where(p => p.PlassType == PlassType.AndelBytte).OrderBy(p => p.FraTid);
 	PrintVenteliste("Pri 1: Bytte av andelsplass", pri1Plasser);
 
-	var underPri1Plasser = venteListe.Except(pri1Plasser);
+	var underPri1Plasser = batplassVenteListe.Except(pri1Plasser);
 	var pri2Plasser = underPri1Plasser
 		.Where(p => p.PlassType == PlassType.AndelNy && andelsplasser.Find(a => a.Eier == p.Navn) != null).OrderBy(p => p.FraTid);
 	PrintVenteliste("Pri 2: Ny (ekstra) andelsplass for andelshaver", pri2Plasser);
@@ -897,7 +907,9 @@ public abstract class HavneData
 	
 	public string PlassPrefix { get; set; }
 	
-	public List<PlassSoker> VenteListe { get; set; }
+	public List<PlassSoker> BatplassVenteliste { get; set; }
+	
+	public List<InnskuddEier> InnskuddVenteliste { get; set; }
 
 	protected abstract HavneData Read(string fromDate = null);
 	
@@ -1073,7 +1085,8 @@ public class StyreWebExport : HavneData
 	private string swMarinaDetaljertFil;
 	private string swFramleieFil;
 	private string swGruppeVaktplikt;
-	private string swGruppeVenteliste;
+	private string swGruppeBatplassVenteliste;
+	private string swGruppeInnskuddVenteliste;
 	private string swExportFolder;
 	private List<string> swFritaksGrupper;
 
@@ -1085,7 +1098,8 @@ public class StyreWebExport : HavneData
 		var workFolder = @"C:\MyLocal\Solviken";
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
 		swGruppeVaktplikt = "Vaktplikt-2025";
-		swGruppeVenteliste = "Venteliste";
+		swGruppeBatplassVenteliste = "Venteliste";
+		swGruppeInnskuddVenteliste = "Innskudd_uten_båt";
 		swFritaksGrupper = new List<string>
 		{
 			"Styre",
@@ -1107,7 +1121,10 @@ public class StyreWebExport : HavneData
 			CopyNewerFile(Path.Combine(downloadFolder, "Marina_-_Detaljert.csv"), swExportFolder);
 			CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
 
-			foreach (var gruppe in swFritaksGrupper.Append(swGruppeVaktplikt).Append(swGruppeVenteliste))
+			foreach (var gruppe in swFritaksGrupper
+								.Append(swGruppeVaktplikt)
+								.Append(swGruppeBatplassVenteliste)
+								.Append(swGruppeInnskuddVenteliste))
 			{
 				CopyNewerFile(Path.Combine(downloadFolder, $"Gruppe{gruppe}.xlsx"), swExportFolder);
 				ConvertFromXlsx2Csv(Path.Combine(swExportFolder, $"Gruppe{gruppe}.xlsx"));
@@ -1327,7 +1344,8 @@ public class StyreWebExport : HavneData
 			}
 		}
 
-		VenteListe = LesVenteliste();
+		BatplassVenteliste = LesBatplassVenteliste();
+		InnskuddVenteliste = LesInnskuddVenteliste();
 		
 		return this;
 	}
@@ -1361,7 +1379,7 @@ public class StyreWebExport : HavneData
 		return medlemmer;
 	}
 
-	private List<PlassSoker> LesVenteliste()
+	private List<PlassSoker> LesBatplassVenteliste()
 	{
 		var gruppeFil = Path.Combine(swExportFolder, "GruppeVenteliste.csv");
 		var sokere = new List<PlassSoker>();
@@ -1415,6 +1433,51 @@ public class StyreWebExport : HavneData
 		}
 		
 		return sokere;
+	}
+
+	private List<InnskuddEier> LesInnskuddVenteliste()
+	{
+		var gruppeFil = Path.Combine(swExportFolder, "GruppeInnskudd_uten_båt.csv");
+		var ventere = new List<InnskuddEier>();
+		if (File.Exists(gruppeFil))
+		{
+			using (var reader = new StreamReader(gruppeFil, Encoding.GetEncoding("UTF-8")))
+			{
+				reader.ReadLine();      // Skip header
+				reader.ReadLine();      // Skip header
+				reader.ReadLine();      // Skip header
+				string line;
+				while ((line = reader.ReadLine()) != null)
+				{
+					var fields = line.Split('\t');
+					if (fields[0] == string.Empty)
+					{
+						break;
+					}
+
+					var navn = $"{fields[1]} {fields[0]}";
+					var kommentar = fields[12].Trim('"');
+					var felt = kommentar.Split(';');
+					if (felt.Length != 3)
+					{
+						Console.WriteLine($"Innskuddeier {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
+						continue;
+					}
+
+					ventere.Add(
+						new InnskuddEier
+						{
+							Navn = navn,
+							PlassId = felt[0],
+							Innskudd = int.Parse(felt[1]),
+							Utbetales = felt[2][0] == 'U'
+						}
+					);
+				}
+			}
+		}
+
+		return ventere;
 	}
 
 	private PlassType GetPlassType(string v1, string v2)
@@ -1520,6 +1583,14 @@ public enum PlassType
 	SesongNy,
 	Jolle,
 	Ingen
+}
+
+public class InnskuddEier
+{
+	public string Navn { get; set; }
+	public string PlassId { get; set; }
+	public int Innskudd { get; set; }
+	public bool Utbetales { get; set; }
 }
 
 public class ExcelExport : HavneData
