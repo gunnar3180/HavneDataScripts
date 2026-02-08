@@ -2,7 +2,10 @@
   <NuGetReference>Microsoft.Playwright</NuGetReference>
   <Namespace>System.Threading.Tasks</Namespace>
   <Namespace>Microsoft.Playwright</Namespace>
+  <Namespace>System.Text.Json</Namespace>
 </Query>
+
+// Interact with StyreWeb through Microsoft.PlatWright
 
 static async Task Main()
 {
@@ -12,8 +15,6 @@ static async Task Main()
 
 public static async Task Go()
 {
-	var brukerNavn = "gb3180@online.no";
-	var kodetPassord = "Cf77D57G1vfiv1S";
 	var loginUrl = "https://portal.styreweb.com/account/login.aspx";
 	var baseUrl = "https://solvikenbatforening.portal.styreweb.com/secure/";
 	var homePageUrl = baseUrl + "Default2.aspx";
@@ -22,6 +23,36 @@ public static async Task Go()
 	var medlemmerUrl = baseUrl + "Members.aspx";
 	var grupperingUrl = baseUrl + "Group.aspx?";
 	var downloadFolder = $@"C:\Users\{Environment.UserName}\Downloads";
+	var configFolder = @"C:\MyLocal\Solviken\Config";
+	var configFile = Path.Combine(configFolder, "WebAutomation.config");
+	string brukerNavn;
+	string kodetPassord;
+	
+	if (File.Exists(configFile))
+	{
+		var json = File.ReadAllText(configFile);
+		var config = JsonSerializer.Deserialize<AppConfig>(json);
+		brukerNavn = config.UserName;
+		kodetPassord = config.EncryptedPassword;
+	}
+	else
+	{
+		Console.WriteLine($"Fant ikke konfigurasjonsfil {configFile}, lager ny...");
+		Console.Write("Brukernavn: ");
+		brukerNavn = Console.ReadLine();
+		Console.Write("Passord: ");
+		var passord = ReadPassword();
+		kodetPassord = EncodeString(passord);
+		
+		var appConfig = new AppConfig
+		{
+			UserName = brukerNavn,
+			EncryptedPassword = kodetPassord
+		};
+
+		var json = JsonSerializer.Serialize<AppConfig>(appConfig, new JsonSerializerOptions { WriteIndented = true });
+		File.WriteAllText(configFile, json);
+	}
 
 	using (var playwright = await Playwright.CreateAsync())
 	{
@@ -75,6 +106,37 @@ public static async Task Go()
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
+}
+
+static string ReadPassword()
+{
+	string pass = "";
+	ConsoleKeyInfo key;
+
+	while (true)
+	{
+		key = Console.ReadKey(intercept: true);
+
+		if (key.Key == ConsoleKey.Enter)
+		{
+			Console.WriteLine();
+			break;
+		}
+
+		if (key.Key == ConsoleKey.Backspace && pass.Length > 0)
+		{
+			pass = pass.Substring(0, pass.Length - 1);
+			// Erase the last 'x'
+			Console.Write("\b \b");
+		}
+		else if (!char.IsControl(key.KeyChar))
+		{
+			pass += key.KeyChar;
+			Console.Write("x");   // show mask character
+		}
+	}
+
+	return pass;
 }
 
 static async Task ByttPlassSide(IPage page, string marinaUrl, string downloadFolder)
@@ -599,4 +661,26 @@ static string DecodeString(string coded)
 	}
 	
 	return new string(decoded.ToArray());
+}
+
+static string EncodeString(string notCoded)
+{
+	var alfaNum = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
+	int maxPos = alfaNum.Length - 1;
+	var coded = new List<char>();
+	
+	foreach (var c in notCoded)
+	{
+		int index = alfaNum.IndexOf(c);
+		int newIndex = (index + 52) % maxPos;
+		coded.Add(alfaNum[newIndex]);
+	}
+	
+	return new string(coded.ToArray());
+}
+
+public class AppConfig
+{
+	public string UserName { get; set; }
+	public string EncryptedPassword { get; set; }
 }

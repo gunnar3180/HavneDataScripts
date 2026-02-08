@@ -4,22 +4,57 @@
   <Namespace>System.Globalization</Namespace>
 </Query>
 
-void Main()
+void Main(string[] args)
 {
 	bool bryggeliste = false;
+	string path = null;
+	string prefix = null;
+	string fromDate = null;
+	
+	if (args?.Length > 0)
+	{
+		// [-file outfile] [-bryggeliste] [-prefix prefix] [-fromdate fromdate]
+		for (int i = 0; i < args.Length; i++)
+		{
+			var arg = args[i];
+			if (arg.Equals("-bryggeliste", StringComparison.OrdinalIgnoreCase))
+			{
+				bryggeliste = true;
+			}
+			else if (arg.Equals("-file", StringComparison.OrdinalIgnoreCase))
+			{
+				path = args[++i];
+			}
+			else if (arg.Equals("-prefix", StringComparison.OrdinalIgnoreCase))
+			{
+				prefix = args[++i];
+			}
+			else if (arg.Equals("-fromdate", StringComparison.OrdinalIgnoreCase))
+			{
+				fromDate = args[++i];
+			}
+		}
+	}
+
 	//
 	//
 	//Enumerable.Range(1, 6)
 	//	.ToList()
 	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
-	
-	VisAlleData(new StyreWebExport().LesData(), bryggeliste);
+
+	VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste);
+	if (path != null)
+	{
+		VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste, path);
+	}
+
 	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
 
 	//VisEierEndringer(new StyreWebExport().LesData(fromDate: "21.08.2025"),
 	//				 new StyreWebExport().LesData());
 	//VisEierEndringer(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+	//VisSluttedeEiere(new HavneWebExport().LesData(), new StyreWebExport().LesData());
 	//VisEierEndringer(new ExcelExport().LesData(), new StyreWebExport().LesData());
 	//new List<int>{1, 2, 3, 5, 6}.ForEach(x => VisArealForskjeller(new HavneWebExport().LesData(x.ToString()), new StyreWebExport().LesData(x.ToString())));
 	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
@@ -35,6 +70,29 @@ void Main()
 	//FinnEierEndringerEtter(DateTime.Parse("20.06.2025"), new StyreWebExport().LesData());
 	//FinnSesongLeiereFraAndelsplass(new StyreWebExport().LesData());
 	//SammenlignGrupper(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+}
+
+void VisSluttedeEiere(HavneData havn1, HavneData havn2)
+{
+	var eiere2 = new HashSet<string>();
+	foreach (var plass in havn2.GetAndelsPlasser())
+	{
+		if (!string.IsNullOrEmpty(plass.Eier))
+		{
+			eiere2.Add(plass.Eier);
+		}
+	}
+	
+	foreach (var plass in havn1.GetAllePlasser())
+	{
+		if (!string.IsNullOrEmpty(plass.Eier))
+		{
+			if (!eiere2.Contains(plass.Eier))
+			{
+				Console.WriteLine($"{plass.PlassId}: {plass.Eier} har sluttet");
+			}
+		}
+	}
 }
 
 void SammenlignGrupper(HavneData havn1, HavneData havn2)
@@ -532,7 +590,7 @@ void VisEierEndringer(HavneData havn1, HavneData havn2)
 	}
 }
 
-void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
+void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 {
 	var andelsplasser = dataSet.GetAndelsPlasser();
 	var sesongplasser = dataSet.GetSesongPlasser();
@@ -546,13 +604,13 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 	var medlemsRegister = new MedlemsRegister().LesData();
 	StreamWriter writer = null;
 	
-	if (path != null)
+	if (file != null)
 	{
-		writer = new StreamWriter(Path.Combine(path, $"Brygge{dataSet.PlassPrefix ?? "r"}.txt"), false, Encoding.GetEncoding("UTF-8"));
+		writer = new StreamWriter(file, false, Encoding.GetEncoding("UTF-8"));
 		Console.SetOut(writer);
 	}
-	
-	Console.Write($"Eksport fra {dataSet.Navn}");
+
+	Console.Write($"Eksport fra {dataSet.Navn} {dataSet.TimeStamp}");
 	if (dataSet.PlassPrefix != null)
 	{
 		Console.WriteLine($" - Plasser som starter med \"{dataSet.PlassPrefix}\"");
@@ -562,6 +620,28 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string path = null)
 		Console.WriteLine();
 	}
 
+	// TODO: Sjekk konsistens av data
+	Console.WriteLine("\nSjekker konsistens:");
+	bool fantFeil = false;
+	foreach (var plass in dataSet.GetAlleBryggePlasser())
+	{
+		if (plass.AndelsPlass && plass.Innskudd == 0)
+		{
+			Console.WriteLine($"{plass.PlassId}: Andelsplass uten innskudd");
+			fantFeil = true;
+		}
+		else if (plass.Innskudd != 0 && !plass.AndelsPlass)
+		{
+			Console.WriteLine($"{plass.PlassId}: Innskudd på plass som ikke er andelsplass");
+			fantFeil = true;
+		}
+	}
+	
+	if (!fantFeil)
+	{
+		Console.WriteLine("Andelsplasser sjekket OK\n");
+	}
+	
 	if (bryggeliste)
 	{
 		var allePlasser = dataSet.GetAllePlasser();
@@ -905,6 +985,8 @@ public abstract class HavneData
 	
 	public abstract string Navn { get; }
 	
+	public DateTime TimeStamp { get; set; }
+	
 	public string PlassPrefix { get; set; }
 	
 	public List<PlassSoker> BatplassVenteliste { get; set; }
@@ -944,7 +1026,12 @@ public abstract class HavneData
 	{
 		return BatPlasser.Values.ToList();
 	}
-	
+
+	public List<BatPlass> GetAlleBryggePlasser()
+	{
+		return BatPlasser.Values.Where(p => !p.LandOpplag).ToList();
+	}
+
 	public List<BatPlass> GetAndelsPlasser()
 	{
 		return BatPlasser.Values.Where(v => v.AndelsPlass).ToList();
@@ -1176,6 +1263,7 @@ public class StyreWebExport : HavneData
 		
 		if (File.Exists(swMarinaDetaljertFil))
 		{
+			TimeStamp = File.GetLastWriteTime(swMarinaDetaljertFil);
 			using (var reader = new StreamReader(swMarinaDetaljertFil, Encoding.GetEncoding("UTF-8")))
 			{
 				reader.ReadLine();      // Skip header
@@ -1234,7 +1322,7 @@ public class StyreWebExport : HavneData
 					var landOpplag = (plassType == "Landopplag");
 					var andelsPlass = (plassType == "Andelsplass") || framleiePlass || lanePlass || tilLeie;
 
-					int innskuddKr = -1;
+					int innskuddKr = 0;
 					if (innskudd.Length > 0)
 					{
 						innskuddKr = int.Parse(innskudd.Split(',')[0]);
@@ -1666,6 +1754,7 @@ public class HavneWebExport : HavneData
 
 	protected override HavneData Read(string fromDate = null)
 	{
+		TimeStamp = DateTime.Parse("31.12.2024");
 		using (var stream = new FileStream(hwExportFil, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
 		{
 			using (var reader = new StreamReader(stream, Encoding.GetEncoding("ISO-8859-1")))

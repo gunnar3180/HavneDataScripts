@@ -29,7 +29,7 @@ void Main()
 		decoded.Add(alfaNum[newIndex]);
 	}
 	
-	Console.WriteLine($"Dekodet passord = \"{new string(decoded.ToArray())}\"");
+	//Console.WriteLine($"Dekodet passord = \"{new string(decoded.ToArray())}\"");
 }
 
 // Define other methods and classes here
