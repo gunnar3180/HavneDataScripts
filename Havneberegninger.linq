@@ -620,11 +620,15 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 		Console.WriteLine();
 	}
 
-	// TODO: Sjekk konsistens av data
 	Console.WriteLine("\nSjekker konsistens:");
 	bool fantFeil = false;
 	foreach (var plass in dataSet.GetAlleBryggePlasser())
 	{
+		if (plass.Eier == null && (plass.AndelsPlass || plass.SesongPlass || plass.JollePlass))
+		{
+			Console.WriteLine($"{plass.PlassId}: Ingen eier, men plassen er markert i bruk");
+		}
+		
 		if (plass.AndelsPlass && plass.Innskudd == 0)
 		{
 			Console.WriteLine($"{plass.PlassId}: Andelsplass uten innskudd");
@@ -635,11 +639,51 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 			Console.WriteLine($"{plass.PlassId}: Innskudd på plass som ikke er andelsplass");
 			fantFeil = true;
 		}
+		
+		// Sjekk framleieplasser
+		if (plass.FramleiePlass && (plass.Eier == null || plass.Leier == null))
+		{
+			Console.WriteLine($"{plass.PlassId}: Framleieplass med feil i eier eller leietaker");
+			fantFeil = true;
+		}
+		else if (plass.Eier != null && plass.Leier != null && !plass.FramleiePlass)
+		{
+			Console.WriteLine($"{plass.PlassId}: Framleid plass, men ikke merker med \"Framleie\"");
+			fantFeil = true;
+		}
+		
+		// Sjekk om eier av plass er merket som sluttet
+		if (plass.Eier != null && plass.Eier.Contains("Sluttet"))
+		{
+			Console.WriteLine($"{plass.PlassId}: Eier er merket som sluttet i medlemsregisteret");
+			fantFeil = true;
+		}
+		
+		if (plass.TilLeie && plass.Eier == null)
+		{
+			Console.WriteLine($"{plass.PlassId}: Plassen er merket til leie, men har ingen eier");
+			fantFeil = true;
+		}
+		
+		if (plass.UngdomsPlass)
+		{
+			Console.WriteLine($"{plass.PlassId}: Ungdomsplass opphører. Varsle {plass.Eier} ");
+			fantFeil = true;
+		}
+		
+		var venterPaInnskudd = innskuddVenteliste.FirstOrDefault(v => v.PlassId == plass.PlassId);
+		if (venterPaInnskudd != null && venterPaInnskudd.Utbetales)
+		{
+			if (ledigePlasser.Find(p => p.PlassId == plass.PlassId) == null)
+			{
+				Console.WriteLine($"{plass.PlassId}: Denne plassen skal være ledig inntil {venterPaInnskudd.Navn} får tilbakebetalt innskudd");
+			}
+		}
 	}
 	
 	if (!fantFeil)
 	{
-		Console.WriteLine("Andelsplasser sjekket OK\n");
+		Console.WriteLine("Konsistens sjekket OK");
 	}
 	
 	if (bryggeliste)
@@ -749,12 +793,18 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	}
 
 	Console.WriteLine($"\n*** Innskudd som ikke er tilbakebetalt ({innskuddVenteliste.Count()}) ***\n");
-	Console.WriteLine("Medlem                    Plass    Innskudd     Ønsker tilbakebetaling");
+	Console.WriteLine("Medlem                    Plass    Innskudd     Solgt   Ønsker tilbakebetaling");
 	Console.WriteLine("--------------------------------------------------------------------------");
 	
 	foreach (var innskudd in innskuddVenteliste)
 	{
-		Console.WriteLine($"{innskudd.Navn,-25} {innskudd.PlassId} {innskudd.Innskudd,10}        {(innskudd.Utbetales ? "J" : "N")}");
+		var navn = innskudd.Navn;
+		var plassId = innskudd.PlassId;
+		var kroner = innskudd.Innskudd;
+		var solgt = dataSet.GetBatPlass(innskudd.PlassId).AndelsPlass;
+		var utbetales = innskudd.Utbetales;
+		
+		Console.WriteLine($"{navn,-25} {plassId} {kroner,10}        {(solgt ? "J" : "N")}       {(innskudd.Utbetales ? "J" : "N")}");
 	}
 
 	Console.WriteLine($"\n*** Venteliste ({batplassVenteListe.Count()}) ***\n");
@@ -1418,17 +1468,16 @@ public class StyreWebExport : HavneData
 		foreach (var plass in fritak)
 		{
 			var bruker = plass.Leier??plass.Eier;
-			if (bruker == null)
+			if (bruker != null)
 			{
-				
-			}
-			if (kjenteFritak.TryGetValue(plass.Leier??plass.Eier, out var reason))
-			{
-				plass.Vaktfritak = reason;
-			}
-			else
-			{
-				plass.Vaktfritak = "Fritak, ukjent årsak";
+				if (kjenteFritak.TryGetValue(plass.Leier ?? plass.Eier, out var reason))
+				{
+					plass.Vaktfritak = reason;
+				}
+				else
+				{
+					plass.Vaktfritak = "Fritak, ukjent årsak";
+				}
 			}
 		}
 
