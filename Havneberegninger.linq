@@ -677,6 +677,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 			if (ledigePlasser.Find(p => p.PlassId == plass.PlassId) == null)
 			{
 				Console.WriteLine($"{plass.PlassId}: Denne plassen skal være ledig inntil {venterPaInnskudd.Navn} får tilbakebetalt innskudd");
+				fantFeil = true;
 			}
 		}
 	}
