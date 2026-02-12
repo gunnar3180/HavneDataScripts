@@ -4,6 +4,17 @@
   <Namespace>System.Globalization</Namespace>
 </Query>
 
+public static class Priser
+{
+	public static List<(double limit, int factor)[]> Prisgrupper = new List<(double limit, int factor)[]>
+	{
+		new[] { (2.5, 800), (3.0, 1005), (3.5, 1050), (4.0, 1420), (4.5, 2000), (5.0, 2200), (10.0, 2500) },	// Joakims tall
+		new[] { (2.5, 1110), (3.0, 1012), (3.5, 1065), (4.0, 1405), (4.5, 1625), (5.0, 1895), (10.0, 1810) },	// Min. faktor for hver gruppe
+		new[] { (2.5, 1000), (3.0, 1100), (3.5, 1200), (4.0, 1400), (4.5, 1600), (5.0, 1800), (10.0, 2000) },	// Glattet ut
+		new[] { (2.5, 1000), (3.0, 1050), (3.5, 1100), (4.0, 1450), (4.5, 1700), (5.0, 1900), (10.0, 2000) },	// Glattet ut
+	};
+}
+
 void Main(string[] args)
 {
 	bool bryggeliste = false;
@@ -36,8 +47,8 @@ void Main(string[] args)
 		}
 	}
 
-	//
-	//
+//
+//
 	//Enumerable.Range(1, 6)
 	//	.ToList()
 	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
@@ -70,6 +81,152 @@ void Main(string[] args)
 	//FinnEierEndringerEtter(DateTime.Parse("20.06.2025"), new StyreWebExport().LesData());
 	//FinnSesongLeiereFraAndelsplass(new StyreWebExport().LesData());
 	//SammenlignGrupper(new HavneWebExport().LesData(), new StyreWebExport().LesData());
+	//SammenlignBatplassAvgift(new StyreWebExport().LesData(fromDate: "21.01.2026"),  // Siste dato før omlegging av bredde/lengde
+	//						new StyreWebExport().LesData());
+	//BeregnBesteGrenserogVerdier(new StyreWebExport().LesData(fromDate: "21.01.2026"),  // Siste dato før omlegging av bredde/lengde
+	//						new StyreWebExport().LesData());
+}
+
+void SammenlignBatplassAvgift(HavneData havn1, HavneData havn2)
+{
+	int gammelTotal = 0;
+	int nyTotal = 0;
+	int[] gammelGruppeTotal = new int[7];
+	int[] nyGruppeTotal = new int[7];
+	int[] antall = new int[7];
+	int prismodell = 3;
+
+	var writer = new StreamWriter(@"C:\Users\Solviken\Downloads\NyeAvgifter.csv", false, Encoding.GetEncoding("UTF-8"));
+	Console.SetOut(writer);
+
+	Console.WriteLine("Forslag til nye avgiftsgrupper for båtplasser:");
+	for (int i = 0; i < Priser.Prisgrupper[prismodell].Length; i++)
+	{
+		Console.WriteLine($"Gruppe {i + 1}:\t< {Priser.Prisgrupper[prismodell][i].limit}m\t{Priser.Prisgrupper[prismodell][i].factor} kr/m");
+	}
+	Console.WriteLine();
+	Console.WriteLine("Plass\tBredde m\tPris/m\tFørpris\tNy pris\tEndring\tProsent");
+	
+	foreach (var plass2 in havn2.GetAlleBryggePlasser()
+			.Where(p => !p.UngdomsPlass && !p.JollePlass && p.PlassId.Length == 4))
+	{
+		var plass1 = havn1.GetBatPlass(plass2.PlassId);
+		if (plass1 != null)
+		{
+			int gammelAvgift = plass1.BeregnBatplassAvgift();
+			int nyavgift = plass2.BeregnNyBatplassAvgift(prismodell);
+			gammelTotal += gammelAvgift;
+			nyTotal += nyavgift;
+			int gruppe = plass2.GetPrisGruppe();
+			antall[gruppe]++;
+			gammelGruppeTotal[gruppe] += gammelAvgift;
+			nyGruppeTotal[gruppe] += nyavgift;
+			int diff = nyavgift - gammelAvgift;
+			var prosent = Math.Round(((double)diff / gammelAvgift) * 100);
+			var bredde = plass2.Bredde / 100.0;
+			int faktor = plass2.GetPrisFaktor(prismodell);
+			Console.WriteLine($"{plass1.PlassId}:\t{bredde}\t{faktor}\t{gammelAvgift}\t{nyavgift}\t{diff}\t{prosent}");
+		}
+	}
+
+	Console.WriteLine($"\nGammel total:\t{gammelTotal}");
+	Console.WriteLine($"Ny total:\t{nyTotal}");
+	Console.WriteLine($"Endring:\t{nyTotal - gammelTotal}");
+	Console.WriteLine("\nPr. gruppe:");
+	Console.WriteLine("Gruppe\tAntall\tTotal før\tTotal nå\tEndring");
+	
+	for (int i = 0; i < 7; i++)
+	{
+		Console.WriteLine($"Gruppe {i + 1}:\t{antall[i]}\t{gammelGruppeTotal[i]}\t{nyGruppeTotal[i]}\t{(nyGruppeTotal[i] - gammelGruppeTotal[i])}");
+	}
+	
+	writer.Close();
+}
+
+void BeregnBesteGrenserogVerdier(HavneData havn1, HavneData havn2)
+{
+	var gamlePriser = new Dictionary<string, int>();
+	(double limit, int factor)[] prisgrupper =
+		new[] { (2.5, 800), (3.0, 1005), (3.5, 1050), (4.0, 1420), (4.5, 2000), (5.0, 2200), (10.0, 2500) };
+	int[] besteFaktor = new int[7];
+	var grupper = new List<BatPlass>[7];
+	int[] gammelTotal = new int[7];
+	
+	for (int i = 0; i < grupper.Length; i++)
+	{
+		grupper[i] = new List<BatPlass>();
+	}
+
+	foreach (var plass in havn2.GetAlleBryggePlasser()
+		.Where(p => (p.AndelsPlass || p.SesongPlass || p.FramleiePlass) && p.PlassId.Length == 4))
+	{
+		var gammelPlass = havn1.GetBatPlass(plass.PlassId);
+		if (gammelPlass != null)
+		{
+			var gammelPris = gamlePriser[gammelPlass.PlassId] = gammelPlass.BeregnBatplassAvgift();
+			double bredde = (double)plass.Bredde / 100.0;
+
+			for (int i = 0; i < prisgrupper.Length; i++)
+			{
+				if (bredde < prisgrupper[i].limit)
+				{
+					grupper[i].Add(plass);
+					gammelTotal[i] += gammelPris;
+					break;
+				}
+			}
+		}
+	}
+
+	for (int prisgruppe = 0; prisgruppe < prisgrupper.Length; prisgruppe++)
+	{
+		int suggestedFactor = prisgrupper[prisgruppe].factor;
+		//int minsteProsent = 10000;
+		for (int factor = suggestedFactor / 2; factor < suggestedFactor * 2; factor += 5)
+		{
+			//int totalProsent = 0;
+			//int totalDiff = 0;
+			int antallPlasser = grupper[prisgruppe].Count;
+			if (antallPlasser > 0)
+			{
+				int totPris = 0;
+				foreach (var plass in grupper[prisgruppe])
+				{
+					double bredde = (double)plass.Bredde / 100.0;
+					int pris = (int)(bredde * factor);
+					totPris += pris;
+					//int gammelPris = gamlePriser[plass.PlassId];
+					//int diff = pris - gammelPris;
+					//totalDiff += diff;
+					//int prosent = (int)Math.Round(((double)diff / gammelPris) * 100.0);
+					//totalProsent += prosent;
+				}
+
+				if (totPris >= gammelTotal[prisgruppe])
+				{
+					// Denne faktoren er "god nok" for prisgruppen
+					besteFaktor[prisgruppe] = factor;
+					break;
+				}
+				//if (totalProsent >= 0)
+				//{
+				//	// Se bort fra faktorer som gir lavere båtplassavgift enn før
+				//	int snittProsent = totalProsent / antallPlasser;
+				//	if (snittProsent < minsteProsent)
+				//	{
+				//		minsteProsent = snittProsent;
+				//		besteFaktor[prisgruppe] = factor;
+				//	}
+				//}
+			}
+		}
+	}
+
+	Console.WriteLine("Beste faktorer:");
+	for (int i = 0; i < prisgrupper.Length; i++)
+	{
+		Console.WriteLine($"< {prisgrupper[i].limit}: {besteFaktor[i]}");
+	}
 }
 
 void VisSluttedeEiere(HavneData havn1, HavneData havn2)
@@ -990,6 +1147,29 @@ public class BatPlass
 	public string batType { get; set; }
 	public VareVariant VareVariant { get; set; }
 
+	List<(double limit, int factor)[]> prisgrupper = Priser.Prisgrupper;
+	
+	public int GetPrisGruppe()
+	{
+		double bredde = (double)Bredde / 100;
+		for (int i = 0; i < prisgrupper[0].Length; i++)
+		{
+			var prisgruppe = prisgrupper[0][i];
+			if (bredde < prisgruppe.limit)
+			{
+				return i;
+			}
+		}
+		
+		return -1;
+	}
+	
+	public int GetPrisFaktor(int prismodell)
+	{
+		int gruppe = GetPrisGruppe();
+		return prisgrupper[prismodell][gruppe].factor;
+	}
+	
 	public int BeregnBatplassAvgift()
 	{
 		if (UngdomsPlass)
@@ -1005,13 +1185,52 @@ public class BatPlass
 			beregnetAvgift = 2500;
 		}
 
-		var leiePlass = Leier != null;
-		return beregnetAvgift + (leiePlass ? LeieTillegg(lengde) : 0);
+		return beregnetAvgift;
+		
+		//var leiePlass = Leier != null;
+		//return beregnetAvgift + (leiePlass ? LeieTillegg(lengde) : 0);
+	}
+	
+	public int BeregnNyBatplassAvgift(int variant, bool includeLimit = false)
+	{
+		double bredde = (double)Bredde / 100;
+		int beregnetAvgift = (int)Math.Round(bredde * NyPrisFaktor(variant, includeLimit, bredde));
+		if (beregnetAvgift < 2500)
+		{
+			beregnetAvgift = 2500;
+		}
+		
+		return beregnetAvgift;
 	}
 
 	public int PrisFaktor(double lengde)
 	{
 		return lengde <= 7.2 ? 160 : (lengde >= 9.2 ? 200 : 180);
+	}
+
+	public int NyPrisFaktor(int variant, bool includeLimit, double bredde)
+	{
+		if (variant < prisgrupper.Count)
+		{
+			foreach (var prisgruppe in prisgrupper[variant])
+			{
+				if (includeLimit)
+				{
+					if (bredde <= prisgruppe.limit)
+					{
+						return prisgruppe.factor;
+					}
+				}
+				else
+				{
+					if (bredde < prisgruppe.limit)
+					{
+						return prisgruppe.factor;
+					}
+				}
+			}
+		}
+		return 0;
 	}
 
 	int LeieTillegg(double lengde)
