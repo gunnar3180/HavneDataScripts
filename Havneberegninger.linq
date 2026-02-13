@@ -374,11 +374,11 @@ void SjekkVareVarianter(HavneData havn)
 	var plasser = havn.GetAndelsPlasser().Concat(havn.GetSesongPlasser());
 	foreach (var plass in plasser)
 	{
-		var lengde = ((double)plass.Lengde) / 100;
-		var beregnetVareVariant = VareVariant.Create(lengde);
-		if (plass.VareVariant.Size != beregnetVareVariant.Size)
+		var bredde = ((double)plass.Bredde) / 100;
+		var beregnetVareVariant = VareVariant.Create(bredde);
+		if (plass.VareVariant.Gruppe != beregnetVareVariant.Gruppe)
 		{
-			Console.WriteLine($"{plass.PlassId}: Feil varevariant {plass.VareVariant.Size}, skal være {beregnetVareVariant.Size}");
+			Console.WriteLine($"{plass.PlassId}: Feil varevariant {plass.VareVariant.Text}, skal være {beregnetVareVariant.Text}");
 		}
 	}
 }
@@ -837,6 +837,17 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 				fantFeil = true;
 			}
 		}
+		
+		//if (plass.AndelsPlass || plass.SesongPlass)
+		//{
+		//	double bredde = plass.Bredde / 100.0;
+		//	var forventetVariant = VareVariant.Create(bredde);
+		//	if (plass.VareVariant.Gruppe != forventetVariant.Gruppe)
+		//	{
+		//		Console.WriteLine($"{plass.PlassId}: Feil båtplass-avgift varevariant. Skal være \"{forventetVariant.Text}\"");
+		//		fantFeil = true;
+		//	}
+		//}
 	}
 	
 	if (!fantFeil)
@@ -954,16 +965,20 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	Console.WriteLine("Medlem                    Plass    Innskudd     Solgt   Ønsker tilbakebetaling");
 	Console.WriteLine("--------------------------------------------------------------------------");
 	
+	int total = 0;
 	foreach (var innskudd in innskuddVenteliste)
 	{
 		var navn = innskudd.Navn;
 		var plassId = innskudd.PlassId;
 		var kroner = innskudd.Innskudd;
+		total += kroner;
 		var solgt = dataSet.GetBatPlass(innskudd.PlassId).AndelsPlass;
 		var utbetales = innskudd.Utbetales;
 		
 		Console.WriteLine($"{navn,-25} {plassId} {kroner,10}        {(solgt ? "J" : "N")}       {(innskudd.Utbetales ? "J" : "N")}");
 	}
+
+	Console.WriteLine($"\nInnskudd som venter på utbetaling: {total} kr");
 
 	Console.WriteLine($"\n*** Venteliste ({batplassVenteListe.Count()}) ***\n");
 	Console.WriteLine("Medlem                    Plass      Bredde     Lengde     Båt                  Dager      Gruppe");
@@ -2112,44 +2127,51 @@ public class Medlem
 
 public class VareVariant
 {
-	public enum Length
+	private static (double limit, string text)[] varevarianter = new (double limit, string text)[]
 	{
-		Undefined,
-		Small,
-		Medium,
-		Big
+		(2.5, "Bredde < 2,5 m"),
+		(3.0, "Bredde 2,5 - 2,99 m"),
+		(3.5, "Bredde 3,0 - 3,49 m"),
+		(4.0, "Bredde 3,5 - 3,99 m"),
+		(4.5, "Bredde 4,0 - 4,49 m"),
+		(5.0, "Bredde 4,5 - 4,99 m"),
+		(9.0, "Bredde >= 5,0 m")
+	};
+	
+	private VareVariant(int gruppe)
+	{
+		Gruppe = gruppe;
+		Text = varevarianter[gruppe].text;
 	}
 	
-	public Length Size { get; set; }
+	public int Gruppe { get; }		// 0-6
 	
-	public static VareVariant Create(double length)
+	public string Text { get; }
+	
+	public static VareVariant Create(double bredde)
 	{
-		if (length < 7.3)
+		for (int i = 0; i < varevarianter.Length; i++)
 		{
-			return new VareVariant { Size = Length.Small };
+			if (bredde < varevarianter[i].limit)
+			{
+				return new VareVariant(i);
+			}
 		}
 		
-		if (length < 9.2)
-		{
-			return new VareVariant { Size = Length.Medium };
-		}
-		
-		return new VareVariant { Size = Length.Big };
+		return new VareVariant(0);
 	}
 	
 	public static VareVariant Create(string variantText)
 	{
-		switch (variantText)
+		for (int i = 0; i < varevarianter.Length; i++)
 		{
-			case "> 7,2 m båtlengde":
-				return new VareVariant { Size = Length.Small };
-			case "7,3m-9,1m båtlengde":
-				return new VareVariant { Size = Length.Medium };
-			case "9,2 < båtlengde":
-				return new VareVariant { Size = Length.Big };
-			default:
-				return new VareVariant { Size = Length.Undefined };
+			if (variantText == varevarianter[i].text)
+			{
+				return new VareVariant(i);
+			}
 		}
+		
+		return new VareVariant(0);
 	}
 }
 
