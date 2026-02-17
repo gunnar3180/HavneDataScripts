@@ -2,6 +2,7 @@
   <Reference>&lt;RuntimeDirectory&gt;\System.Collections.Concurrent.dll</Reference>
   <Namespace>System.Collections.Concurrent</Namespace>
   <Namespace>System.Globalization</Namespace>
+  <Namespace>System.Net</Namespace>
 </Query>
 
 public static class Priser
@@ -85,6 +86,7 @@ void Main(string[] args)
 	//						new StyreWebExport().LesData());
 	//BeregnBesteGrenserogVerdier(new StyreWebExport().LesData(fromDate: "21.01.2026"),  // Siste dato før omlegging av bredde/lengde
 	//						new StyreWebExport().LesData());
+	//UploadFtp("ftp://vd03.verdidata.no/StyreWebStatus.html", @"C:\Users\Solviken\Downloads\StyreWebStatus.html", "solvikenftp", "c5712$vQp");
 }
 
 void SammenlignBatplassAvgift(HavneData havn1, HavneData havn2)
@@ -759,10 +761,13 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	var batplassVenteListe = dataSet.BatplassVenteliste;
 	var innskuddVenteliste = dataSet.InnskuddVenteliste;
 	var medlemsRegister = new MedlemsRegister().LesData();
+	TextWriter originalOut = null;
 	StreamWriter writer = null;
 	
 	if (file != null)
 	{
+		// Save the original output stream
+		originalOut = Console.Out;
 		writer = new StreamWriter(file, false, Encoding.GetEncoding("UTF-8"));
 		Console.SetOut(writer);
 	}
@@ -1007,7 +1012,81 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	if (writer != null)
 	{
 		writer.Close();
+		
+		Console.SetOut(originalOut);
+		PublishStatus(file);
 	}
+}
+
+void PublishStatus(string file)
+{
+	var prefix = new string[]
+	{
+		"<!DOCTYPE html>",
+		"<html>",
+		"<head>",
+		"    <meta charset=\"UTF-8\">",
+		"    <title>StyreWeb status</title>",
+		"</head>",
+		"<body>",
+		"<pre>"
+	};
+
+	var postfix = new string[]
+	{
+		"</pre>",
+		"</body>",
+		"</html>"
+	};
+
+	var contents = File.ReadAllLines(file);
+	var path = Path.GetDirectoryName(file);
+	var fileName = Path.GetFileNameWithoutExtension(file);
+	var htmlFile = Path.Combine(path, fileName + ".html");
+	using (var writer = new StreamWriter(htmlFile, false, Encoding.UTF8))
+	{
+		foreach (var line in prefix)
+		{
+			writer.WriteLine(line);
+		}
+		foreach (var line in contents)
+		{
+			writer.WriteLine(line);
+		}
+		foreach (var line in postfix)
+		{
+			writer.WriteLine(line);
+		}
+	}
+
+	UploadFtp($"ftp://vd03.verdidata.no/{fileName}.html", htmlFile, "solvikenftp", "c5712$vQp");
+	Console.WriteLine($"Lastet opp {htmlFile} til solviken.no");
+}
+
+void UploadFtp(string ftpUrl, string localFile, string user, string pass)
+{
+	FtpWebRequest req = (FtpWebRequest)WebRequest.Create(ftpUrl);
+	req.Method = WebRequestMethods.Ftp.UploadFile;
+	req.Credentials = new NetworkCredential(user, pass);
+	req.UsePassive = true;
+	req.UseBinary = true;
+	req.KeepAlive = false;
+
+	byte[] data = File.ReadAllBytes(localFile);
+	req.ContentLength = data.Length;
+
+	try
+	{
+		using (Stream stream = req.GetRequestStream())
+			stream.Write(data, 0, data.Length);
+	}
+	catch (Exception ex)
+	{
+		return;
+	}
+
+	using (FtpWebResponse resp = (FtpWebResponse)req.GetResponse())
+		Console.WriteLine(resp.StatusDescription);
 }
 
 void PrintVenteliste(string heading, IEnumerable<PlassSoker> venteliste)
