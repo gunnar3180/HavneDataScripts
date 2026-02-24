@@ -1,7 +1,13 @@
 <Query Kind="Program">
   <Reference>&lt;RuntimeDirectory&gt;\System.Collections.Concurrent.dll</Reference>
+  <NuGetReference>ExcelDataReader</NuGetReference>
+  <NuGetReference>ExcelDataReader.DataSet</NuGetReference>
+  <Namespace>ExcelDataReader</Namespace>
+  <Namespace>System</Namespace>
   <Namespace>System.Collections.Concurrent</Namespace>
+  <Namespace>System.Data</Namespace>
   <Namespace>System.Globalization</Namespace>
+  <Namespace>System.IO</Namespace>
   <Namespace>System.Net</Namespace>
 </Query>
 
@@ -1852,7 +1858,7 @@ public class StyreWebExport : HavneData
 
 					var navn = $"{fields[1]} {fields[0]}";
 					var dato = fields[10];
-					if (!DateTime.TryParseExact(dato, "M/d/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fraTid))
+					if (!ParseDate(dato, out var fraTid))
 					{
 						Console.WriteLine($"Søker {navn} har ugyldig starttid {dato}");
 						continue;
@@ -1884,6 +1890,12 @@ public class StyreWebExport : HavneData
 		}
 		
 		return sokere;
+	}
+
+	private bool ParseDate(string date, out DateTime tid)
+	{
+		return DateTime.TryParseExact(date, "M/d/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out tid)
+		|| DateTime.TryParse(date, out tid);
 	}
 
 	private List<InnskuddEier> LesInnskuddVenteliste()
@@ -1973,21 +1985,29 @@ public class StyreWebExport : HavneData
 
 	private void ConvertFromXlsx2Csv(string excelFile)
 	{
-		var folder = Path.GetDirectoryName(excelFile);
-		var csvFile = Path.Combine(folder, Path.GetFileNameWithoutExtension(excelFile)) + ".csv";
-
-		if (File.GetLastWriteTime(excelFile) > File.GetLastWriteTime(csvFile))
+		using (var stream = File.Open(excelFile, FileMode.Open, FileAccess.Read))
 		{
-			File.Delete(csvFile);
-			string scriptName = @"C:\MyLocal\Solviken\xlsx2csv.vbs"; // full path to script
-			ProcessStartInfo ps = new ProcessStartInfo();
-			ps.FileName = "cscript.exe";
-			ps.Arguments = $"{scriptName} {excelFile} {csvFile}";
-			ps.WindowStyle = ProcessWindowStyle.Hidden;
-			ps.CreateNoWindow = true;
-			var process = Process.Start(ps);
-			process.WaitForExit();
-			process.Close();
+			using (var reader = ExcelReaderFactory.CreateReader(stream))
+			{
+				var path = Path.GetDirectoryName(excelFile);
+				var fileName = Path.GetFileNameWithoutExtension(excelFile);
+				var csvFile = Path.Combine(path, fileName) + ".csv";
+				using (var writer = new StreamWriter(csvFile))
+				{
+					var result = reader.AsDataSet();
+
+					DataTable table = result.Tables[0]; // first sheet
+
+					foreach (DataRow row in table.Rows)
+					{
+						for (int i = 0; i < row.ItemArray.Length - 1; i++)
+						{
+							writer.Write($"{row.ItemArray[i]}\t");
+						}
+						writer.WriteLine($"{row.ItemArray[row.ItemArray.Length - 1]}");
+					}
+				}
+			}
 		}
 	}
 
