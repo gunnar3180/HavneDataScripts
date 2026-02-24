@@ -1985,6 +1985,11 @@ public class StyreWebExport : HavneData
 
 	private void ConvertFromXlsx2Csv(string excelFile)
 	{
+		if (!File.Exists(excelFile))
+		{
+			return;
+		}
+		
 		using (var stream = File.Open(excelFile, FileMode.Open, FileAccess.Read))
 		{
 			using (var reader = ExcelReaderFactory.CreateReader(stream))
