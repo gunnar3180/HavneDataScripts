@@ -102,10 +102,152 @@ public static async Task Go()
 		//await SettAndelsplasser(page, marinaUrl);
 		
 		//await ByttPlassSide(page, marinaUrl, downloadFolder);
+		
+		//await FixVareVariant(page, marinaUrl, downloadFolder);
 
 		await page.ScreenshotAsync(new PageScreenshotOptions { Path = @"C:\MyLocal\Solviken\screenshot.png" });
 		await browser.DisposeAsync();
 	}
+}
+
+static async Task FixVareVariant(IPage page, string marinaUrl, string downloadFolder)
+{
+	var marinaFile = Path.Combine(downloadFolder, "Marina.csv");
+	using (var reader = new StreamReader(marinaFile))
+	{
+		string line;
+		reader.ReadLine();	// Skip header
+		while ((line = reader.ReadLine()) != null)
+		{
+			var fields = line.Split('\t');
+			if (fields.Length >= 9)
+			{
+				var plass = fields[1];
+				var type = fields[2];
+				var eier = fields[8];
+				if (!(type == "Andelsplass" || type == "Sesongplass" || type == "Til leie"))
+				{
+					continue;
+				}
+
+				if (!(plass.Length == 4 && double.TryParse(fields[3], out var bredde)))
+				{
+					continue;
+				}
+
+				if (!await FinnBatplass(page, marinaUrl, plass))
+				{
+					continue;
+				}
+				
+				var vareVariant = VareVariant.Create(bredde).Text;
+				
+				await LeverInnOgUtMedNyVareVariant(page, plass, eier, vareVariant);
+			}
+		}
+	}
+}
+
+static async Task SettVareVariant(IPage page, string vareVariant)
+{
+	// Klikk på endre
+	var endreButton = page.Locator("input[type='button'][value='Endre']");
+	await endreButton.ClickAsync();
+
+	// Velg varevariant
+	var vareVariantLocator = page.Locator("#Main_detailGenericArchiveMember_cboProductVariant");
+	await vareVariantLocator.SelectOptionAsync(vareVariant);
+
+	// Klikk på lagre
+	var lagreButton = page.Locator("input[type='submit'][value='Lagre']");
+	await lagreButton.ClickAsync();
+}
+
+static async Task<bool> FinnUtlevert(IPage page)
+{
+	await page
+		.Locator("#Main_grdvMembersMarina tbody tr:first-child a")
+		.First
+		.ClickAsync();
+
+	return true;
+}
+
+static async Task LeverInnOgUtMedNyVareVariant(IPage page, string plass, string eier, string vareVariant)
+{
+	// Klikk på "Lever inn"
+	var leverInn = page.Locator("#Main_btnDeliverIn");
+	await leverInn.ClickAsync();
+
+	// Sett til dato i går
+	var tilDato = page.Locator("#Main_detailGenericArchiveMember_txtEndDate");
+	await tilDato.FillAsync("04.03.2026");
+
+	// Klikk på lagre
+	var lagreButton = page.Locator("input[type='submit'][value='Lagre']");
+	await lagreButton.ClickAsync();
+	Console.WriteLine($"\n{plass}: Levert inn");
+
+	// Klikk på "<<"
+	await page.GetByText("<<").ClickAsync();
+
+	// Klikk på "Lever ut"
+	var leverUt = page.Locator("#Main_btnDeliverOut");
+	await leverUt.ClickAsync();
+
+	// Sett medlem
+	var medlemSelect = page.Locator("#Main_detailGenericArchiveMember_cboAccDebit");
+	await medlemSelect.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+	var medlemOptions = page.Locator("#Main_detailGenericArchiveMember_cboAccDebit option");
+
+	var options = await medlemOptions.AllInnerTextsAsync();
+	string label = options.First(o => o.StartsWith(eier));
+	await medlemSelect.SelectOptionAsync(label);
+
+	// Sett fra dato
+	var fraDato = page.Locator("#Main_detailGenericArchiveMember_txtStartDate");
+	await fraDato.FillAsync("05.03.2026");
+
+	// Velg vare variant
+	var vareVariantLocator = page.Locator("#Main_detailGenericArchiveMember_cboProductVariant");
+	await vareVariantLocator.SelectOptionAsync(vareVariant);
+
+	// Klikk på "Opprett"
+	await page.GetByText("Opprett").ClickAsync();
+	Console.WriteLine($"{plass}: Levert ut på nytt til {eier} med vare variant {vareVariant}\n");
+}
+
+static async Task<bool> FinnBatplass(IPage page, string marinaUrl, string plass)
+{
+	await page.GotoAsync(marinaUrl);
+	var inputField = page.Locator("#LeftNavBar_txtSerieNr");
+	await inputField.FillAsync(plass);
+	await page.ClickAsync("button:has-text(\"Søk\")");
+
+	var tableLocator = page.Locator("sw-panel#pnlMain table#Main_grdv");
+	try
+	{
+		await tableLocator.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5000 });
+	}
+	catch (Exception)
+	{
+		Console.WriteLine($"Fant ikke båtplass {plass}");
+		return false;
+	}
+
+	//Console.WriteLine("Table with ID 'Main_grdv' exists inside <sw-panel>.");
+	//await page.Locator("a", new PageLocatorOptions { HasTextString = plass }).ClickAsync();
+	var plassLenke = page.Locator("a").Locator($"text=\"{plass}\"");
+	int hits = await plassLenke.CountAsync();
+	if (hits == 0)
+	{
+		Console.WriteLine($"Fant ikke båtplass {plass} i StyreWeb, hopper over");
+		return false;
+	}
+
+	await plassLenke.ClickAsync();
+	
+	return true;
 }
 
 static string ReadPassword()
@@ -677,6 +819,56 @@ static string EncodeString(string notCoded)
 	}
 	
 	return new string(coded.ToArray());
+}
+
+public class VareVariant
+{
+	private static (double limit, string text)[] varevarianter = new(double limit, string text)[]
+	{
+		(2.5, "Bredde < 2,5 m"),
+		(3.0, "Bredde 2,5 - 2,99 m"),
+		(3.5, "Bredde 3,0 - 3,49 m"),
+		(4.0, "Bredde 3,5 - 3,99 m"),
+		(4.5, "Bredde 4,0 - 4,49 m"),
+		(5.0, "Bredde 4,5 - 4,99 m"),
+		(9.0, "Bredde >= 5,0 m")
+	};
+
+	private VareVariant(int gruppe)
+	{
+		Gruppe = gruppe;
+		Text = varevarianter[gruppe].text;
+	}
+
+	public int Gruppe { get; }      // 0-6
+
+	public string Text { get; }
+
+	public static VareVariant Create(double bredde)
+	{
+		for (int i = 0; i < varevarianter.Length; i++)
+		{
+			if (bredde < varevarianter[i].limit)
+			{
+				return new VareVariant(i);
+			}
+		}
+
+		return new VareVariant(0);
+	}
+
+	public static VareVariant Create(string variantText)
+	{
+		for (int i = 0; i < varevarianter.Length; i++)
+		{
+			if (variantText == varevarianter[i].text)
+			{
+				return new VareVariant(i);
+			}
+		}
+
+		return new VareVariant(0);
+	}
 }
 
 public class AppConfig

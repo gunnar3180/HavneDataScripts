@@ -849,16 +849,16 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 			}
 		}
 		
-		//if (plass.AndelsPlass || plass.SesongPlass)
-		//{
-		//	double bredde = plass.Bredde / 100.0;
-		//	var forventetVariant = VareVariant.Create(bredde);
-		//	if (plass.VareVariant.Gruppe != forventetVariant.Gruppe)
-		//	{
-		//		Console.WriteLine($"{plass.PlassId}: Feil båtplass-avgift varevariant. Skal være \"{forventetVariant.Text}\"");
-		//		fantFeil = true;
-		//	}
-		//}
+		if (plass.AndelsPlass || plass.SesongPlass)
+		{
+			double bredde = plass.Bredde / 100.0;
+			var forventetVariant = VareVariant.Create(bredde);
+			if (plass.VareVariant.Gruppe != forventetVariant.Gruppe)
+			{
+				Console.WriteLine($"{plass.PlassId}: Feil båtplass-avgift varevariant. Skal være \"{forventetVariant.Text}\"");
+				fantFeil = true;
+			}
+		}
 	}
 	
 	if (!fantFeil)
