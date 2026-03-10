@@ -991,10 +991,32 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 
 	Console.WriteLine($"\nInnskudd som venter på utbetaling: {total} kr");
 
+	PrintVentelister(batplassVenteListe, andelsplasser);
+	
+	string venteListeFil = null;
+	if (file != null)
+	{
+		// Denne skal ut på separat fil i tillegg
+		venteListeFil = Path.Combine(Path.GetDirectoryName(file), "venteliste.txt");
+		using (var ventelisteWriter = new StreamWriter(venteListeFil, false, Encoding.GetEncoding("UTF-8")))
+		{
+			Console.SetOut(ventelisteWriter);
+			PrintVentelister(batplassVenteListe, andelsplasser);
+		}
+		writer.Close();
+
+		Console.SetOut(originalOut);
+		PublishStatus(file);
+		PublishStatus(venteListeFil);
+	}
+}
+
+void PrintVentelister(List<PlassSoker> batplassVenteListe, List<BatPlass> andelsplasser)
+{
 	Console.WriteLine($"\n*** Venteliste ({batplassVenteListe.Count()}) ***\n");
 	Console.WriteLine("Medlem                    Plass      Bredde     Lengde     Båt                  Dager      Gruppe");
 	Console.WriteLine("-------------------------------------------------------------------------------------------------------");
-	
+
 	var pri1Plasser = batplassVenteListe.Where(p => p.PlassType == PlassType.AndelBytte).OrderBy(p => p.FraTid);
 	PrintVenteliste("Pri 1: Bytte av andelsplass", pri1Plasser);
 
@@ -1014,14 +1036,6 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	PrintVenteliste("Pri 4: Sesongplass", pri4Plasser);
 
 	Console.WriteLine();
-	
-	if (writer != null)
-	{
-		writer.Close();
-		
-		Console.SetOut(originalOut);
-		PublishStatus(file);
-	}
 }
 
 void PublishStatus(string file)
