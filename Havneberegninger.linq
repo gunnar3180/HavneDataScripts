@@ -1001,6 +1001,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 		using (var ventelisteWriter = new StreamWriter(venteListeFil, false, Encoding.GetEncoding("UTF-8")))
 		{
 			Console.SetOut(ventelisteWriter);
+			Console.WriteLine($"Solviken Båtforening, status fra StyreWeb {DateTime.Now.ToString("dd.MM.yyyy hh:mm:ss")}");
 			PrintVentelister(batplassVenteListe, andelsplasser);
 		}
 		writer.Close();

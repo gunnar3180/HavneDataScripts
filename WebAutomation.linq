@@ -3,6 +3,7 @@
   <Namespace>System.Threading.Tasks</Namespace>
   <Namespace>Microsoft.Playwright</Namespace>
   <Namespace>System.Text.Json</Namespace>
+  <Namespace>System.Text.RegularExpressions</Namespace>
 </Query>
 
 // Interact with StyreWeb through Microsoft.PlatWright
@@ -17,7 +18,6 @@ public static async Task Go()
 {
 	var loginUrl = "https://portal.styreweb.com/account/login.aspx";
 	var baseUrl = "https://solvikenbatforening.portal.styreweb.com/secure/";
-	var homePageUrl = baseUrl + "Default2.aspx";
 	var marinaUrl   = baseUrl + "archive/marina.aspx";
 	var framleieUrl = baseUrl + "archive/marinasublet.aspx";
 	var medlemmerUrl = baseUrl + "Members.aspx";
@@ -63,7 +63,7 @@ public static async Task Go()
 		await page.GetByLabel("Brukernavn").FillAsync(brukerNavn);
 		await page.GetByLabel("Passord").FillAsync(DecodeString(kodetPassord));
 		await page.GetByRole(AriaRole.Button).ClickAsync();
-		await page.WaitForURLAsync(homePageUrl);
+		await page.WaitForURLAsync(new Regex($"{baseUrl}.*"));
 		Console.WriteLine("Logget inn");
 
 		// Do the job
