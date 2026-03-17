@@ -80,7 +80,7 @@ void Main(string[] args)
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
 	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
-	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
+	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData(fromDate: "31.08.2025"));
 	//SjekkSesongOgUngdom(new StyreWebExport().LesData());
 	//FinnLeietillegg(new StyreWebExport().LesData());
 	//SjekkVareVarianter(new StyreWebExport().LesData());
@@ -511,6 +511,167 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn)
 	}
 	
 	Console.WriteLine($"\nAntall medlemmer med vaktfritak: {gruppert.Count()}, båtplasser: {antallFritak}");
+	
+	// Skal finne alle medlemmer med dugnadsplikt, og hvor mange dugnadstimer (båtplasser x 8)
+	var dugnadsplikt = new ConcurrentDictionary<string, (int, string)>();		// navn, timer
+	var andelsplasser = havn.GetAndelsPlasser();
+	var sesongplasser = havn.GetSesongPlasser();
+	var pliktigeplasser = andelsplasser.Concat(sesongplasser).Distinct().OrderBy(a => a.PlassId);
+
+	// Havneinstruks punkt 12: Ved fylte 75 år halveres dugnadsplikt
+	// For 2025 vil det si født i 1950 eller tidligere
+	var alder75pluss = new HashSet<string>();
+	var fil75pluss = @"C:\MyLocal\Solviken\FraStyreWeb\Dato_Alder_start_slutt.csv";
+	using (var reader = new StreamReader(fil75pluss))
+	{
+		reader.ReadLine();
+		string line;
+		while ((line = reader.ReadLine()) != null)
+		{
+			var parts = line.Split('\t');
+			if (parts.Length < 3)
+			{
+				break;
+			}
+
+			var navn = $"{parts[2]} {parts[1]}";
+			alder75pluss.Add(navn);
+		}
+	}
+
+	var sisteDugnadSpring2025 = DateTime.Parse("19.06.2025");
+	foreach (var plass in pliktigeplasser)
+	{
+		if (plass.Vaktfritak == null)
+		{
+			var key = plass.Leier ?? plass.Eier;
+			var utlevert = plass.Leier != null ? plass.UtLeidFra : plass.UtlevertFra;
+			int dugnadsPliktTimer = utlevert > sisteDugnadSpring2025 ? 4 : 8;
+			if (alder75pluss.Contains(key))
+			{
+				dugnadsPliktTimer /= 2;
+			}
+			
+			dugnadsplikt.AddOrUpdate(
+				key, 
+				(dugnadsPliktTimer, plass.PlassId), 
+				(k, v) => (v.Item1 + dugnadsPliktTimer, v.Item2 + "," + plass.PlassId)
+			);
+		}
+	}
+	
+	var dugnadsPliktListe = dugnadsplikt.OrderBy(d => d.Key.Split(' ').Reverse().ToArray()[0]).ToList();
+	Console.WriteLine("\n *** Dugnadspliktige ***");
+	foreach (var pliktig in dugnadsPliktListe)
+	{
+		Console.WriteLine($"{pliktig.Key,-30}{pliktig.Value.Item1,10}{pliktig.Value.Item2, 20}");
+	}
+
+	// Les export av dugnadsregnskap 2025 vår og høst
+	var dugnadsRegnskap = new ConcurrentDictionary<string, int>();
+	var dugnadVarFileName = @"C:\MyLocal\Solviken\FraStyreWeb\Dugnadsregnskap_2025_vår.csv";
+	var dugnadHostFileName = @"C:\MyLocal\Solviken\FraStyreWeb\Dugnadsregnskap_2025_høst.csv";
+	var filer = new string[] {dugnadVarFileName, dugnadHostFileName};
+	foreach (var fil in filer)
+	{
+		using (var reader = new StreamReader(fil))
+		{
+			reader.ReadLine();
+			reader.ReadLine();
+			reader.ReadLine();
+			string line;
+			while ((line = reader.ReadLine()) != null)
+			{
+				var fields = line.Split(';');
+				if (string.IsNullOrEmpty(fields[0]))
+				{
+					break;
+				}
+
+				var navn = $"{fields[1]} {fields[0]}";
+				if (fields.Length >= 5 && int.TryParse(fields[4], out var innsats))
+				{
+					dugnadsRegnskap.AddOrUpdate(navn, innsats, (n, v) => v + innsats);
+				}
+			}
+		}
+	}
+
+	var innsatsListe = dugnadsRegnskap.OrderBy(d => d.Key.Split(' ').Reverse().ToArray()[0]).ToList();
+	var manglendeTimer = new List<(string, int)>();
+	
+	foreach (var dugnadsPlikt in dugnadsPliktListe)
+	{
+		int pliktigeTimer = dugnadsPlikt.Value.Item1;
+		if (dugnadsRegnskap.TryGetValue(dugnadsPlikt.Key, out var timer))
+		{
+			pliktigeTimer -= timer;
+			innsatsListe.RemoveAt(innsatsListe.IndexOf(new KeyValuePair<string, int>(dugnadsPlikt.Key, timer)));
+		}
+		
+		if (pliktigeTimer > 0)
+		{
+			manglendeTimer.Add((dugnadsPlikt.Key, pliktigeTimer));
+		}
+	}
+	
+	// Utført dugnad som ikke er satt på båtplass
+	Console.WriteLine("\nUtført dugnad uten plikt:");
+	foreach (var utfort in innsatsListe)
+	{
+		if (!fritaksPlasser.Any(p => (p.Leier ?? p.Eier) == utfort.Key))
+		{
+			string utfortFor = FinnUtfortFor(utfort.Key);
+			if (utfortFor != null)
+			{
+				int ix = manglendeTimer.FindIndex(a => a.Item1 == utfortFor);
+				if (ix >= 0)
+				{
+					var mangler = manglendeTimer[ix];
+					manglendeTimer[ix] = (mangler.Item1, mangler.Item2 - utfort.Value);
+					Console.WriteLine($"{utfort.Key, -30} {utfort.Value, 10} (for {mangler.Item1})");
+				}
+				else
+				{
+					Console.WriteLine($"Fant ikke {utfortFor} i listen over manglende dugnadstimer");
+				}
+			}
+			else
+			{
+				Console.WriteLine($"{utfort.Key,-30} {utfort.Value, 10}");
+			}
+		}
+	}
+
+	Console.WriteLine("\nIkke utført dugnad:");
+	var gruppeFilNavn = @"C:\MyLocal\Solviken\FraStyreWeb\GruppeImportDugnadsFaktura.csv";
+	using (var writer = new StreamWriter(gruppeFilNavn))
+	{
+		writer.WriteLine("Visningsnavn");
+		foreach (var mangler in manglendeTimer)
+		{
+			if (mangler.Item2 > 0)
+			{
+				Console.WriteLine($"{mangler.Item1,-30} {mangler.Item2,10} {mangler.Item2 * 300,8} kr");
+				writer.WriteLine($"{mangler.Item1}\t{mangler.Item2 * 300}");
+			}
+		}
+	}
+}
+
+string FinnUtfortFor(string key)
+{
+	switch (key)
+	{
+		case "Morten Dundas":
+			return "Carl Edvard Reinertsen";
+		case "Kim Helen Ottne":
+			return "Jon Ottne";
+		case "Frode Spangelo":
+			return "Øystein Spangelo";
+	}
+	
+	return null;
 }
 
 void VisLedigePlasser(HavneData havn)
@@ -1705,7 +1866,8 @@ public class StyreWebExport : HavneData
 					var reservert = (plassType == "Reservert");
 					var tilLeie = (plassType == "Til leie");
 					var landOpplag = (plassType == "Landopplag");
-					var andelsPlass = (plassType == "Andelsplass") || framleiePlass || lanePlass || tilLeie;
+					var andelsPlass = //((eier != null) && !landOpplag) ||	// Gammel definisjon
+										(plassType == "Andelsplass") || framleiePlass || lanePlass || tilLeie;
 
 					int innskuddKr = 0;
 					if (innskudd.Length > 0)
@@ -1796,11 +1958,15 @@ public class StyreWebExport : HavneData
 		.OrderBy(g => g.Item1)
 		.Distinct(new VervNavnComparer())
 		.ToDictionary(key => key.Item1, value => value.Item2);
-		var pliktigePlasser = GetAndelsPlasser().Concat(GetSesongPlasser());
-		var vaktpliktige = LesGruppe(swGruppeVaktplikt);
-		var fritak = pliktigePlasser.Where(p => !vaktpliktige.Any(v => (p.Leier??p.Eier) == v.Item1));
+		var andelsplasser = GetAndelsPlasser();
+		var sesongplasser = GetSesongPlasser();
+		var pliktigePlasser = andelsplasser.Concat(sesongplasser).OrderBy(a => a.PlassId);
+		//var vaktpliktige = LesGruppe(swGruppeVaktplikt);
+		var pliktige = pliktigePlasser.Select(p => p.Leier ?? p.Eier).Distinct();
+		var fri = pliktigePlasser.Where(p => kjenteFritak.TryGetValue(p.Leier ?? p.Eier, out var foo));
+		//var fritak = pliktigePlasser.Where(p => !pliktige.Any(v => (p.Leier??p.Eier) == v));
 		
-		foreach (var plass in fritak)
+		foreach (var plass in fri)
 		{
 			var bruker = plass.Leier??plass.Eier;
 			if (bruker != null)
@@ -1825,7 +1991,13 @@ public class StyreWebExport : HavneData
 	private List<(string, string)> LesGruppe(string gruppe)
 	{
 		var gruppeFil = Path.Combine(swExportFolder, $"Gruppe{gruppe}.csv");
-		var medlemmer = new List<(string, string)>();	// (Navn, gruppe)
+		var medlemmer = new List<(string, string)>();   // (Navn, gruppe)
+		if (!File.Exists(gruppeFil) && !swExportFolder.EndsWith("FraStyreweb"))
+		{
+			// Try one level up instead
+			var folder = swExportFolder + @"\..";
+			gruppeFil = Path.Combine(folder, $"Gruppe{gruppe}.csv");
+		}
 		if (File.Exists(gruppeFil))
 		{
 			using (var reader = new StreamReader(gruppeFil, Encoding.GetEncoding("UTF-8")))
