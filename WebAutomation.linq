@@ -67,11 +67,26 @@ public static async Task Go()
 		Console.WriteLine("Logget inn");
 
 		// Do the job
+		var swFritaksGrupper = new List<string>
+		{
+			"Styre",
+			"Havneutvalget",
+			"Revisorer",
+			"Valgkomite",
+			"Elektrikergruppa",
+			"Diverse verv",
+			"Omsøkt vaktfritak",
+		};
+
 		await DownloadMarina(page, marinaUrl, downloadFolder);
 		await DownloadFramleie(page, framleieUrl, downloadFolder);
 		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
 		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
 		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Innskudd uten båt");
+		foreach (var gruppe in swFritaksGrupper)
+		{
+			await DownloadGruppering(page, grupperingUrl, downloadFolder, gruppe);
+		}
 
 		//await EndreBatplassStorrelser(page, marinaUrl);
 		//await EndreBatplassGrupper(page, marinaUrl);

@@ -81,6 +81,7 @@ void Main(string[] args)
 	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
 	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData(fromDate: "31.08.2025"));
+	VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
 	//SjekkSesongOgUngdom(new StyreWebExport().LesData());
 	//FinnLeietillegg(new StyreWebExport().LesData());
 	//SjekkVareVarianter(new StyreWebExport().LesData());
@@ -949,7 +950,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 		Console.WriteLine();
 	}
 
-	Console.WriteLine("\nSjekker konsistens:");
+	Console.WriteLine("\nSer etter feil i data:");
 	bool fantFeil = false;
 	foreach (var plass in dataSet.GetAlleBryggePlasser())
 	{
@@ -1024,7 +1025,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	
 	if (!fantFeil)
 	{
-		Console.WriteLine("Konsistens sjekket OK");
+		Console.WriteLine("Fant ingen feil");
 	}
 	
 	if (bryggeliste)
@@ -1076,7 +1077,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	Console.WriteLine($"\n{ungdomsplasser.Count} ungdomsplasser");
 	foreach (var plass in ungdomsplasser)
 	{
-		var bruker = plass.Leier ?? plass.Eier;
+		var bruker = plass.Bruker;
 		var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
 		Console.WriteLine($"{plass.PlassId}: {bruker,-25} {tlf,-13}");
 	}
@@ -1084,7 +1085,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	Console.WriteLine($"\n{jollePlasser.Count} jolleplasser");
 	foreach (var plass in jollePlasser)
 	{
-		var bruker = plass.Leier ?? plass.Eier;
+		var bruker = plass.Bruker;
 		var tlf = medlemsRegister.Medlemmer[bruker].Tlf;
 		Console.WriteLine($"{plass.PlassId}: {bruker,-25} {tlf,-13}");
 	}
@@ -1320,7 +1321,7 @@ void PrintBatplass2(BatPlass plass, MedlemsRegister medlemsRegister)
 {
 	var bredde = ((double)plass.Bredde / 100).ToString("0.00");
 	var lengde = ((double)plass.Lengde / 100).ToString("00.00").TrimStart('0').PadLeft(5);
-	var bruker = plass.Leier ?? plass.Eier;
+	var bruker = plass.Bruker;
 	if (bruker == null)
 	{
 		if (plass.Reservert)
@@ -1422,6 +1423,7 @@ public class BatPlass
 	public string Vaktfritak { get; set; }
 	public string batType { get; set; }
 	public VareVariant VareVariant { get; set; }
+	public string Bruker => Leier ?? Eier; 
 
 	List<(double limit, int factor)[]> prisgrupper = Priser.Prisgrupper;
 	
@@ -1717,7 +1719,6 @@ public class StyreWebExport : HavneData
 	private string downloadFolder;
 	private string swMarinaDetaljertFil;
 	private string swFramleieFil;
-	private string swGruppeVaktplikt;
 	private string swGruppeBatplassVenteliste;
 	private string swGruppeInnskuddVenteliste;
 	private string swExportFolder;
@@ -1730,7 +1731,6 @@ public class StyreWebExport : HavneData
 		downloadFolder = $@"C:\Users\{Environment.UserName}\Downloads";
 		var workFolder = @"C:\MyLocal\Solviken";
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
-		swGruppeVaktplikt = "Vaktplikt-2025";
 		swGruppeBatplassVenteliste = "Venteliste";
 		swGruppeInnskuddVenteliste = "Innskudd_uten_båt";
 		swFritaksGrupper = new List<string>
@@ -1755,7 +1755,6 @@ public class StyreWebExport : HavneData
 			CopyNewerFile(Path.Combine(downloadFolder, "Fremleie_historie.csv"), swExportFolder);
 
 			foreach (var gruppe in swFritaksGrupper
-								.Append(swGruppeVaktplikt)
 								.Append(swGruppeBatplassVenteliste)
 								.Append(swGruppeInnskuddVenteliste))
 			{
@@ -1961,17 +1960,15 @@ public class StyreWebExport : HavneData
 		var andelsplasser = GetAndelsPlasser();
 		var sesongplasser = GetSesongPlasser();
 		var pliktigePlasser = andelsplasser.Concat(sesongplasser).OrderBy(a => a.PlassId);
-		//var vaktpliktige = LesGruppe(swGruppeVaktplikt);
-		var pliktige = pliktigePlasser.Select(p => p.Leier ?? p.Eier).Distinct();
-		var fri = pliktigePlasser.Where(p => kjenteFritak.TryGetValue(p.Leier ?? p.Eier, out var foo));
-		//var fritak = pliktigePlasser.Where(p => !pliktige.Any(v => (p.Leier??p.Eier) == v));
+		var pliktige = pliktigePlasser.Select(p => p.Bruker).Distinct();
+		var fritak = pliktigePlasser.Where(p => kjenteFritak.TryGetValue(p.Bruker, out var foo));
 		
-		foreach (var plass in fri)
+		foreach (var plass in fritak)
 		{
-			var bruker = plass.Leier??plass.Eier;
+			var bruker = plass.Bruker;
 			if (bruker != null)
 			{
-				if (kjenteFritak.TryGetValue(plass.Leier ?? plass.Eier, out var reason))
+				if (kjenteFritak.TryGetValue(bruker, out var reason))
 				{
 					plass.Vaktfritak = reason;
 				}
