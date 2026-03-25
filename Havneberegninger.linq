@@ -572,6 +572,8 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 	// Les export av dugnadsregnskap 2026
 	var dugnadsRegnskap = new ConcurrentDictionary<string, int>();
 	var dugnadFileName = @"C:\MyLocal\Solviken\FraStyreWeb\Dugnadsregnskap.csv";
+	int totalInnsats = 0;
+	
 	using (var reader = new StreamReader(dugnadFileName))
 	{
 		reader.ReadLine();
@@ -590,6 +592,7 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 			{
 				var navn = $"{fields[1]} {fields[0]}";
 				dugnadsRegnskap.AddOrUpdate(navn, innsats, (n, v) => v + innsats);
+				totalInnsats += innsats;
 			}
 		}
 	}
@@ -666,7 +669,8 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 		}
 	}
 
-	Console.WriteLine($"\nTotalt antall ikke utført dugnad: {totalMangler}");
+	Console.WriteLine($"\nAntall timer utført dugnad i 2026: {totalInnsats}");
+	Console.WriteLine($"Antall timer ikke utført dugnad: {totalMangler}");
 }
 
 string FinnUtfortFor(string key)
