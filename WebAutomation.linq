@@ -22,6 +22,7 @@ public static async Task Go()
 	var framleieUrl = baseUrl + "archive/marinasublet.aspx";
 	var medlemmerUrl = baseUrl + "Members.aspx";
 	var grupperingUrl = baseUrl + "Group.aspx?";
+	var dugnadsUrl = baseUrl + "VolunteerWork.aspx";
 	var downloadFolder = $@"C:\Users\{Environment.UserName}\Downloads";
 	var configFolder = @"C:\MyLocal\Solviken\Config";
 	var configFile = Path.Combine(configFolder, "WebAutomation.config");
@@ -88,6 +89,8 @@ public static async Task Go()
 			await DownloadGruppering(page, grupperingUrl, downloadFolder, gruppe);
 		}
 
+		await DownloadDugnadsRegnskap(page, dugnadsUrl, downloadFolder);
+		
 		//await EndreBatplassStorrelser(page, marinaUrl);
 		//await EndreBatplassGrupper(page, marinaUrl);
 
@@ -698,6 +701,20 @@ static async Task DownloadMedlemmer(IPage page, string medlemmerUrl, string down
 	await page.GotoAsync(medlemmerUrl);
 	await page.Locator("#Main_cboAction").SelectOptionAsync(new SelectOptionValue { Label = "Detaljert Rapport" });
 	await VisRapportOgLastNed(page, Path.Combine(downloadFolder, "Detaljert_Rapport.csv"));
+}
+
+static async Task DownloadDugnadsRegnskap(IPage page, string dugnadsUrl, string downloadFolder)
+{
+	await page.GotoAsync(dugnadsUrl);
+	await page.Locator("#Main_cboSeason").SelectOptionAsync(new SelectOptionValue { Label = "2026" });
+	await page.Locator("#Main_btnGetSeason").ClickAsync();      // "Hent"
+	await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+	var downloadTask = page.WaitForDownloadAsync();
+	await page.Locator("#Main_btnExportExcel").ClickAsync();      // "Eksport"
+	var download = await downloadTask;
+	var savePath = Path.Combine(downloadFolder, "Dugnadsregnskap.xlsx");
+	await download.SaveAsAsync(savePath);
+	Console.WriteLine($"Lastet ned {savePath}");
 }
 
 static async Task LagOpplagsplass(IPage page, string marinaUrl, string felt, int nummer)
