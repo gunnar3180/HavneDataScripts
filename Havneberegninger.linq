@@ -460,7 +460,7 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 	var sortert = fritaksPlasser.OrderBy(p => p.Bruker);
 	var gruppert = sortert.GroupBy(s => s.Bruker);
 	var sortertPaArsak = new Dictionary<string, List<IGrouping<string, BatPlass>>>();		// Årsak, brukere
-	Console.WriteLine("Medlemmer med fritak for vakt og dugnad:");
+	Console.Write("\n+Medlemmer med fritak for vakt og dugnad");
 	int antallFritak = 0;
 	foreach (var bruker in gruppert)
 	{
@@ -497,10 +497,11 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 			Console.WriteLine();
 		}
 
-		Console.WriteLine($"-Antall fritaksplasser: {arsakPlasser}");
+		Console.WriteLine($"Antall fritaksplasser: {arsakPlasser}");
 	}
 	
 	Console.WriteLine($"\nAntall medlemmer med vakt/dugnadsfritak: {gruppert.Count()}, båtplasser: {antallFritak}");
+	Console.WriteLine("-");
 	
 	// Skal finne alle medlemmer med dugnadsplikt, og hvor mange dugnadstimer (båtplasser x 8)
 	var dugnadsplikt = new ConcurrentDictionary<string, (int, string)>();		// navn, timer
@@ -550,10 +551,10 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 		}
 	}
 	
-	var dugnadsPliktListe = dugnadsplikt.OrderBy(d => d.Key.Split(' ').Reverse().ToArray()[0]).ToList();
+	var dugnadsPliktListe = dugnadsplikt.OrderBy(d => d.Key.Split(' ').Reverse().ToArray()[0]).ToList();	// Sorter på etternavn
 	int totalTimer = 0;
 	int totalVakter = 0;
-	Console.WriteLine("\n *** Vakt/dugnadspliktige ***");
+	Console.WriteLine("\n+Vakt/dugnadspliktige");
 	Console.WriteLine("Medlem                      Vakter  Dugnad   Plass(er)");
 	foreach (var pliktig in dugnadsPliktListe)
 	{
@@ -568,6 +569,7 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 
 	Console.WriteLine($"\nTotalt {totalVakter} pliktige vakter");
 	Console.WriteLine($"Totalt {totalTimer} pliktige dugnadstimer");
+	Console.WriteLine("-");
 
 	// Les export av dugnadsregnskap 2026
 	var dugnadsRegnskap = new ConcurrentDictionary<string, int>();
@@ -598,6 +600,9 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 	}
 
 	var innsatsListe = dugnadsRegnskap.OrderBy(d => d.Key.Split(' ').Reverse().ToArray()[0]).ToList();
+	Console.WriteLine("\n+Registrerte dugnadstimer i 2026");
+	innsatsListe.ForEach(l => Console.WriteLine($"{l.Key,-30}{l.Value, 2}"));
+	
 	var manglendeTimer = new List<(string, int)>();
 	
 	foreach (var dugnadsPlikt in dugnadsPliktListe)
@@ -642,17 +647,19 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 			}
 		}
 	}
-	
+
 	if (ukjente.Count > 0)
 	{
-		Console.WriteLine("\nUtført dugnad uten plikt:");
+		Console.WriteLine("\nUtført dugnad uten plikt, skal føres på andre?:");
 		foreach (var ukjent in ukjente)
 		{
 			Console.WriteLine(ukjent);
 		}
 	}
+	Console.WriteLine($"\nAntall timer utført dugnad i 2026: {totalInnsats}");
+	Console.WriteLine("-");
 
-	Console.WriteLine("\nIkke utført dugnad i 2026:");
+	Console.WriteLine("\n+Manglende dugnadstimer i 2026");
 	int totalMangler = 0;
 	//var gruppeFilNavn = @"C:\MyLocal\Solviken\FraStyreWeb\GruppeImportDugnadsFaktura.csv";
 	//using (var writer = new StreamWriter(gruppeFilNavn))
@@ -669,8 +676,8 @@ void VisAlleMedVaktfritakOgPlasser(HavneData havn, string file = null)
 		}
 	}
 
-	Console.WriteLine($"\nAntall timer utført dugnad i 2026: {totalInnsats}");
-	Console.WriteLine($"Antall timer ikke utført dugnad: {totalMangler}");
+	Console.WriteLine($"\nAntall timer ikke utført dugnad i 2026: {totalMangler}");
+	Console.WriteLine("-");
 }
 
 string FinnUtfortFor(string key)
@@ -681,6 +688,7 @@ string FinnUtfortFor(string key)
 			return "Carl Edvard Reinertsen";
 		case "Frode Spangelo":
 			return "Øystein Spangelo";
+		// Fyll på med flere ...
 	}
 	
 	return null;
@@ -961,83 +969,13 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 		Console.WriteLine();
 	}
 
-	Console.WriteLine("\nSer etter feil i data:");
-	bool fantFeil = false;
-	foreach (var plass in dataSet.GetAlleBryggePlasser())
+	var feil = SjekkForFeil(dataSet, innskuddVenteliste, ledigePlasser);
+	if (feil.Count > 0)
 	{
-		if (plass.Eier == null && (plass.AndelsPlass || plass.SesongPlass || plass.JollePlass))
-		{
-			Console.WriteLine($"{plass.PlassId}: Ingen eier, men plassen er markert i bruk");
-		}
-		
-		if (plass.AndelsPlass && plass.Innskudd == 0)
-		{
-			Console.WriteLine($"{plass.PlassId}: Andelsplass uten innskudd");
-			fantFeil = true;
-		}
-		else if (plass.Innskudd != 0 && !plass.AndelsPlass)
-		{
-			Console.WriteLine($"{plass.PlassId}: Innskudd på plass som ikke er andelsplass");
-			fantFeil = true;
-		}
-		
-		// Sjekk framleieplasser
-		if (plass.FramleiePlass && (plass.Eier == null || plass.Leier == null))
-		{
-			Console.WriteLine($"{plass.PlassId}: Framleieplass med feil i eier eller leietaker");
-			fantFeil = true;
-		}
-		else if (plass.Eier != null && plass.Leier != null && !plass.FramleiePlass)
-		{
-			Console.WriteLine($"{plass.PlassId}: Framleid plass, men ikke merker med \"Framleie\"");
-			fantFeil = true;
-		}
-		
-		// Sjekk om eier av plass er merket som sluttet
-		if (plass.Eier != null && plass.Eier.Contains("Sluttet"))
-		{
-			Console.WriteLine($"{plass.PlassId}: Eier er merket som sluttet i medlemsregisteret");
-			fantFeil = true;
-		}
-		
-		if (plass.TilLeie && plass.Eier == null)
-		{
-			Console.WriteLine($"{plass.PlassId}: Plassen er merket til leie, men har ingen eier");
-			fantFeil = true;
-		}
-		
-		if (plass.UngdomsPlass)
-		{
-			Console.WriteLine($"{plass.PlassId}: Ungdomsplass opphører. Varsle {plass.Eier} ");
-			fantFeil = true;
-		}
-		
-		var venterPaInnskudd = innskuddVenteliste.FirstOrDefault(v => v.PlassId == plass.PlassId);
-		if (venterPaInnskudd != null && venterPaInnskudd.Utbetales)
-		{
-			if (ledigePlasser.Find(p => p.PlassId == plass.PlassId) == null)
-			{
-				Console.WriteLine($"{plass.PlassId}: Denne plassen skal være ledig inntil {venterPaInnskudd.Navn} får tilbakebetalt innskudd");
-				fantFeil = true;
-			}
-		}
-		
-		if (plass.AndelsPlass || plass.SesongPlass)
-		{
-			double bredde = plass.Bredde / 100.0;
-			var forventetVariant = VareVariant.Create(bredde);
-			if (plass.VareVariant.Gruppe != forventetVariant.Gruppe)
-			{
-				Console.WriteLine($"{plass.PlassId}: Feil båtplass-avgift varevariant. Skal være \"{forventetVariant.Text}\"");
-				fantFeil = true;
-			}
-		}
+		Console.WriteLine("\n+ Feil i båtplassdata");
+		feil.ForEach(f => Console.WriteLine(f));
 	}
-	
-	if (!fantFeil)
-	{
-		Console.WriteLine("Fant ingen feil");
-	}
+	Console.WriteLine("-");
 	
 	if (bryggeliste)
 	{
@@ -1056,20 +994,25 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 		return;
 	}
 
-	Console.WriteLine($"\n{andelsplasser.Count} andelsplasser");
+	Console.WriteLine("\n+Andelsplasser");
+	Console.WriteLine($"{andelsplasser.Count} andelsplasser");
 	foreach (var plass in andelsplasser)
 	{
 		PrintBatplass(plass, true, medlemsRegister);
 	}
+	Console.WriteLine("-");
 
-	Console.WriteLine($"\n{framleiePlasser.Count} framleide plasser");
+	Console.WriteLine("\n+Framleide plasser");
+	Console.WriteLine($"{framleiePlasser.Count} framleide plasser");
 	foreach (var plass in framleiePlasser)
 	{
 		var eier = $"(fra {plass.Eier})";
 		PrintBatplass(plass, false, medlemsRegister, eier);
 	}
+	Console.WriteLine("-");
 
-	Console.WriteLine($"\n{sesongplasser.Count} sesongplasser");
+	Console.WriteLine("\n+Sesongplasser");
+	Console.WriteLine($"{sesongplasser.Count} sesongplasser");
 	foreach (var plass in sesongplasser)
 	{
 		if (plass.Leier != null)
@@ -1084,27 +1027,38 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 			PrintBatplass(plass, true, medlemsRegister, null);
 		}
 	}
+	Console.WriteLine("-");
 
-	Console.WriteLine($"\n{ungdomsplasser.Count} ungdomsplasser");
-	foreach (var plass in ungdomsplasser)
+	if (ungdomsplasser.Count > 0)
 	{
-		Console.WriteLine($"{plass.PlassId}: {plass.Bruker,-25}");
+		Console.WriteLine("\n+Ungdomsplasser");
+		Console.WriteLine($"{ungdomsplasser.Count} ungdomsplasser");
+		foreach (var plass in ungdomsplasser)
+		{
+			Console.WriteLine($"{plass.PlassId}: {plass.Bruker,-25}");
+		}
+		Console.WriteLine("-");
 	}
 
-	Console.WriteLine($"\n{jollePlasser.Count} jolleplasser");
+	Console.WriteLine("\n+Jolleplasser");
+	Console.WriteLine($"{jollePlasser.Count} jolleplasser");
 	foreach (var plass in jollePlasser)
 	{
 		Console.WriteLine($"{plass.PlassId}: {plass.Bruker,-25}");
 	}
+	Console.WriteLine("-");
 
 	// Til leie-plasser
-	Console.WriteLine($"\n{tilLeiePlasser.Count} plasser til leie");
+	Console.WriteLine("\n+Plasser til leie");
+	Console.WriteLine($"{tilLeiePlasser.Count} plasser til leie");
 	foreach (var plass in tilLeiePlasser)
 	{
 		PrintBatplass(plass, true, medlemsRegister);
 	}
+	Console.WriteLine("-");
 
-	Console.WriteLine($"\n{ledigePlasser.Count} ledige plasser");
+	Console.WriteLine("\n+Ledige plasser");
+	Console.WriteLine($"{ledigePlasser.Count} ledige plasser");
 	var breddeListe = new List<(string, string, char)>();
 	var ledigePrGruppe = new Dictionary<char, int>
 	{
@@ -1140,8 +1094,10 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	{
 		Console.WriteLine($"{ledige.Key}: {ledige.Value}");
 	}
+	Console.WriteLine("-");
 
-	Console.WriteLine($"\n*** Innskudd som ikke er tilbakebetalt ({innskuddVenteliste.Count()}) ***\n");
+	Console.WriteLine("\n+Innskudd ikke tilbakebetalt");
+	//Console.WriteLine($"\n*** Innskudd som ikke er tilbakebetalt ({innskuddVenteliste.Count()}) ***\n");
 	Console.WriteLine("Medlem                    Plass    Innskudd     Solgt   Ønsker tilbakebetaling");
 	Console.WriteLine("--------------------------------------------------------------------------");
 	
@@ -1159,8 +1115,10 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	}
 
 	Console.WriteLine($"\nInnskudd som venter på utbetaling: {total} kr");
+	Console.WriteLine("-");
 
 	PrintVentelister(batplassVenteListe, andelsplasser);
+	PrintLandopplag(dataSet);
 	VisAlleMedVaktfritakOgPlasser(dataSet);
 	
 	string venteListeFil = null;
@@ -1177,14 +1135,90 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 		writer.Close();
 
 		Console.SetOut(originalOut);
-		PublishStatus(file);
+		PublishStatus(file, true);
 		PublishStatus(venteListeFil);
 	}
 }
 
+void PrintLandopplag(HavneData dataSet)
+{
+	Console.WriteLine("\n+Landopplagsplasser");
+	dataSet.GetLandOpplagsPlasser().ForEach(s => Console.WriteLine($"{s.PlassId}: {s.Eier??"Ledig",-30}"));
+	Console.WriteLine("-");
+}
+
+List<string> SjekkForFeil(HavneData dataSet, List<InnskuddEier> innskuddVenteliste, List<BatPlass> ledigePlasser)
+{
+	var result = new List<string>();
+	foreach (var plass in dataSet.GetAlleBryggePlasser())
+	{
+		if (plass.Eier == null && (plass.AndelsPlass || plass.SesongPlass || plass.JollePlass))
+		{
+			result.Add($"{plass.PlassId}: Ingen eier, men plassen er markert i bruk");
+		}
+
+		if (plass.AndelsPlass && plass.Innskudd == 0)
+		{
+			result.Add($"{plass.PlassId}: Andelsplass uten innskudd");
+		}
+		else if (plass.Innskudd != 0 && !plass.AndelsPlass)
+		{
+			result.Add($"{plass.PlassId}: Innskudd på plass som ikke er andelsplass");
+		}
+
+		// Sjekk framleieplasser
+		if (plass.FramleiePlass && (plass.Eier == null || plass.Leier == null))
+		{
+			result.Add($"{plass.PlassId}: Framleieplass med feil i eier eller leietaker");
+		}
+		else if (plass.Eier != null && plass.Leier != null && !plass.FramleiePlass)
+		{
+			result.Add($"{plass.PlassId}: Framleid plass, men ikke merker med \"Framleie\"");
+		}
+
+		// Sjekk om eier av plass er merket som sluttet
+		if (plass.Eier != null && plass.Eier.Contains("Sluttet"))
+		{
+			result.Add($"{plass.PlassId}: Eier er merket som sluttet i medlemsregisteret");
+		}
+
+		if (plass.TilLeie && plass.Eier == null)
+		{
+			result.Add($"{plass.PlassId}: Plassen er merket til leie, men har ingen eier");
+		}
+
+		if (plass.UngdomsPlass)
+		{
+			result.Add($"{plass.PlassId}: Ungdomsplass opphører. Varsle {plass.Eier} ");
+		}
+
+		var venterPaInnskudd = innskuddVenteliste.FirstOrDefault(v => v.PlassId == plass.PlassId);
+		if (venterPaInnskudd != null && venterPaInnskudd.Utbetales)
+		{
+			if (ledigePlasser.Find(p => p.PlassId == plass.PlassId) == null)
+			{
+				result.Add($"{plass.PlassId}: Denne plassen skal være ledig inntil {venterPaInnskudd.Navn} får tilbakebetalt innskudd");
+			}
+		}
+
+		if (plass.AndelsPlass || plass.SesongPlass)
+		{
+			double bredde = plass.Bredde / 100.0;
+			var forventetVariant = VareVariant.Create(bredde);
+			if (plass.VareVariant.Gruppe != forventetVariant.Gruppe)
+			{
+				result.Add($"{plass.PlassId}: Feil båtplass-avgift varevariant. Skal være \"{forventetVariant.Text}\"");
+			}
+		}
+	}
+
+	return result;
+}
+
 void PrintVentelister(List<PlassSoker> batplassVenteListe, List<BatPlass> andelsplasser)
 {
-	Console.WriteLine($"\n*** Venteliste ({batplassVenteListe.Count()}) ***\n");
+	Console.WriteLine("\n+Venteliste");
+	//Console.WriteLine($"\n*** Venteliste ({batplassVenteListe.Count()}) ***\n");
 	Console.WriteLine("Medlem                    Plass      Bredde     Lengde     Båt                  Dager      Gruppe");
 	Console.WriteLine("-------------------------------------------------------------------------------------------------------");
 
@@ -1206,12 +1240,53 @@ void PrintVentelister(List<PlassSoker> batplassVenteListe, List<BatPlass> andels
 		.OrderBy(p => p.PlassType).ThenBy(p => p.FraTid);
 	PrintVenteliste("Pri 4: Sesongplass", pri4Plasser);
 
-	Console.WriteLine();
+	Console.WriteLine("-");
 }
 
-void PublishStatus(string file)
+void PublishStatus(string file, bool collapse = false)
 {
-	var prefix = new string[]
+	var style = new List<string>
+	{
+		"<style>",
+		"body {",
+		"  font-family: Arial, Helvetica, sans-serif;",
+		"}",
+		"",
+		"/* Make the main heading look clean */",
+		"h1 {",
+		"  font-family: Arial, Helvetica, sans-serif;",
+		"  font-size: 1.8em;",
+		"  margin-bottom: 0.5em;",
+		"}",
+		"",
+		"/* Style the summary text */",
+		"summary {",
+		"  font-family: Arial, Helvetica, sans-serif;",
+		"  font-size: 1.1em;",
+		"  cursor: pointer;",
+		//"  font-weight: bold;",
+		"  list-style: none;",
+		"}",
+		"",
+		"/* Remove default marker and use + / - */",
+		"summary::marker {",
+		"  display: none;",
+		"}",
+		"",
+		"summary::before {",
+		"  content: \"+ \";",
+		"  font-weight: bold;",
+		"  margin-right: 5px;",
+		"}",
+		"",
+		"details[open] summary::before {",
+		"  content: \"-\";",
+		"}",
+		"</style>",
+		"<h1>StyreWeb Status</h1>"
+	};
+
+	var prefix = new List<string>
 	{
 		"<!DOCTYPE html>",
 		"<html>",
@@ -1223,7 +1298,7 @@ void PublishStatus(string file)
 		"<pre>"
 	};
 
-	var postfix = new string[]
+	var postfix = new List<string>
 	{
 		"</pre>",
 		"</body>",
@@ -1236,17 +1311,43 @@ void PublishStatus(string file)
 	var htmlFile = Path.Combine(path, fileName + ".html");
 	using (var writer = new StreamWriter(htmlFile, false, Encoding.UTF8))
 	{
-		foreach (var line in prefix)
-		{
-			writer.WriteLine(line);
-		}
+		(collapse ? style : prefix).ForEach(p => writer.WriteLine(p));
 		foreach (var line in contents)
 		{
-			writer.WriteLine(line);
+			if (line.StartsWith("+"))
+			{
+				if (collapse)
+				{
+					writer.WriteLine("<details>");
+					writer.WriteLine($"  <summary>{line.Substring(1)}</summary>");
+					writer.WriteLine("  <pre>");
+				}
+				else
+				{
+					writer.WriteLine(line.Substring(1));	// Skip +
+				}
+			}
+			else if (line == "-")
+			{
+				if (collapse)
+				{
+					writer.WriteLine("  </pre>");
+					writer.WriteLine("</details>");
+					//writer.WriteLine();
+				}
+			}
+			else
+			{
+				writer.WriteLine(line);
+			}
 		}
-		foreach (var line in postfix)
+		
+		if (!collapse)
 		{
-			writer.WriteLine(line);
+			foreach (var line in postfix)
+			{
+				writer.WriteLine(line);
+			}
 		}
 	}
 
@@ -2539,4 +2640,3 @@ public static class Priser
 		new[] { (2.5, 1000), (3.0, 1050), (3.5, 1100), (4.0, 1450), (4.5, 1700), (5.0, 1900), (10.0, 2000) },	// Glattet ut
 	};
 }
-
