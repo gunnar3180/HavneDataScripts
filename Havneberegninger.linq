@@ -2167,7 +2167,7 @@ public class StyreWebExport : HavneData
 					}
 
 					var kommentar = fields[12].Trim('"');
-					var felt = kommentar.Split(';');
+					var felt = kommentar.Split(';', '/');
 					if (felt.Length != 6)
 					{
 						Console.WriteLine($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
@@ -2222,7 +2222,7 @@ public class StyreWebExport : HavneData
 
 					var navn = $"{fields[1]} {fields[0]}";
 					var kommentar = fields[12].Trim('"');
-					var felt = kommentar.Split(';');
+					var felt = kommentar.Split(';', '/');
 					if (felt.Length != 3)
 					{
 						Console.WriteLine($"Innskuddeier {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
