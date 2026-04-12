@@ -1387,8 +1387,16 @@ void PrintVenteliste(string heading, IEnumerable<PlassSoker> venteliste)
 	foreach (var plass in venteliste)
 	{
 		int dager = (DateTime.Now - plass.FraTid).Days;
-		var gruppe = HavneData.FinnInnskuddGruppeFraLengde(plass.Lengde);
-		var gruppeTxt = $"{gruppe.Item1}: {gruppe.Item2}";
+		string gruppeTxt;
+		if (plass.PlassType == PlassType.Jolle)
+		{
+			gruppeTxt = "Jolleplass";
+		}
+		else
+		{
+			var gruppe = HavneData.FinnInnskuddGruppeFraLengde(plass.Lengde);
+			gruppeTxt = $"{gruppe.Item1}: {gruppe.Item2}";
+		}
 		Console.WriteLine($"{plass.Navn,-25} {plass.PlassId,-10} {plass.Bredde,-10} {plass.Lengde,-10} {plass.BatType,-20} {dager,-10} {gruppeTxt}");
 	}
 }
