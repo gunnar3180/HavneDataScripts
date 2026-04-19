@@ -84,6 +84,8 @@ public static async Task Go()
 		await DownloadMedlemmer(page, medlemmerUrl, downloadFolder);
 		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Venteliste");
 		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Innskudd uten båt");
+		await DownloadGruppering(page, grupperingUrl, downloadFolder, "Aprilvakter-2026");
+		
 		foreach (var gruppe in swFritaksGrupper)
 		{
 			await DownloadGruppering(page, grupperingUrl, downloadFolder, gruppe);

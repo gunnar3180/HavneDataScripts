@@ -49,11 +49,11 @@ void Main(string[] args)
 	//	.ToList()
 	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
 
-	VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste);
-	if (path != null)
-	{
-		VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste, path);
-	}
+	//VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste);
+	//if (path != null)
+	//{
+	//	VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste, path);
+	//}
 
 	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
@@ -67,7 +67,7 @@ void Main(string[] args)
 	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
 	//VisVaktFritak(new HavneWebExport().LesData());
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
-	//VisAlleMedVaktplikt(new StyreWebExport().LesData(), new HavneWebExport().LesData());
+	VisAlleMedVaktplikt_2026(new StyreWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
 	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData(fromDate: "31.08.2025"));
 	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
@@ -704,24 +704,39 @@ void VisLedigePlasser(HavneData havn)
 	}
 }
 
-void VisAlleMedVaktplikt(HavneData styreWeb, HavneData hwExport)
+void VisAlleMedVaktplikt_2026(HavneData havn)
 {
 	// Lag liste for import til gruppering i styreweb
-	var pliktigePlasser = styreWeb.GetAndelsPlasser().Concat(styreWeb.GetSesongPlasser());
-	var fritak2024 = hwExport.GetAllePlasser().Where(p => p.Vaktfritak != null);
-	Console.WriteLine($"Visningsnavn");
+	var aprilvakter = havn.LesGruppe("Aprilvakter-2026").Select(v => v.Item1).ToList();
+	var pliktigePlasser = havn.GetAndelsPlasser()
+		.Concat(havn.GetSesongPlasser())
+		.GroupBy(x => x.Bruker)		// Egentlig DistinctBy, men den fins ikke i .NET 4.8
+		.Select(x => x.First())
+		.Where(p => p.Vaktfritak == null)
+		.Where(p => !aprilvakter.Any(q => p.Bruker == q))
+		.OrderBy(a => a.PlassId)
+		.ToList();
+
+	int antallPliktige = pliktigePlasser.Count;
+	//Console.WriteLine($"Visningsnavn");
 	foreach (var plass in pliktigePlasser)
 	{
-		Console.Write($"{plass.Leier ?? plass.Eier};{plass.PlassId}");
-		if (fritak2024.Any(f => f.PlassId == plass.PlassId))
-		{
-			Console.WriteLine($";Fritak 2024");
-		}
-		else
-		{
-			Console.WriteLine();
-		}
+		Console.WriteLine(plass.Bruker);
 	}
+
+	// Hvor mange dager fra 15/5 tom. 15/10?
+	var start = new DateTime(2026, 5, 15);
+	var end = new DateTime(2026, 10, 15);
+	int vaktliste2Dager = (end - start).Days + 1;   // +1 to include both 15 May and 15 Oct
+	int dobbeltvakter = antallPliktige - vaktliste2Dager;
+	int singelvakter = vaktliste2Dager - dobbeltvakter;
+	var sisteSingelvakt = start.AddDays(singelvakter - 1);
+
+	Console.WriteLine($"\nAntall dager fom. 15. mai tom. 15. oktober: {vaktliste2Dager}");
+	Console.WriteLine($"Antall vaktpliktige: {antallPliktige}");
+	Console.WriteLine($"Antall dobbeltvakter: {dobbeltvakter}");
+	Console.WriteLine($"Antall singelvakter: {singelvakter}");
+	Console.WriteLine($"Siste singelvakt: {sisteSingelvakt.ToString("dd.MM.yyyy")}");
 }
 
 void BeregnBatplassAvgifter(HavneData havneData)
@@ -1656,7 +1671,12 @@ public abstract class HavneData
 	public List<InnskuddEier> InnskuddVenteliste { get; set; }
 
 	protected abstract HavneData Read(string fromDate = null);
-	
+
+	public virtual List<(string, string)> LesGruppe(string gruppe)
+	{
+		return null;
+	}
+
 	public HavneData LesData(string prefix = null, string fromDate = null)
 	{
 		PlassPrefix = prefix;
@@ -1835,6 +1855,7 @@ public class StyreWebExport : HavneData
 	private string swFramleieFil;
 	private string swGruppeBatplassVenteliste;
 	private string swGruppeInnskuddVenteliste;
+	private string swVakterApril2026;
 	private string swExportFolder;
 	private List<string> swFritaksGrupper;
 
@@ -1847,6 +1868,7 @@ public class StyreWebExport : HavneData
 		swExportFolder = Path.Combine(workFolder, "FraStyreweb");
 		swGruppeBatplassVenteliste = "Venteliste";
 		swGruppeInnskuddVenteliste = "Innskudd_uten_båt";
+		swVakterApril2026 = "Aprilvakter-2026";
 		swFritaksGrupper = new List<string>
 		{
 			"Styre",
@@ -1870,7 +1892,8 @@ public class StyreWebExport : HavneData
 
 			foreach (var gruppe in swFritaksGrupper
 								.Append(swGruppeBatplassVenteliste)
-								.Append(swGruppeInnskuddVenteliste))
+								.Append(swGruppeInnskuddVenteliste)
+								.Append(swVakterApril2026))
 			{
 				CopyNewerFile(Path.Combine(downloadFolder, $"Gruppe{gruppe}.xlsx"), swExportFolder);
 				ConvertFromXlsx2Csv(Path.Combine(swExportFolder, $"Gruppe{gruppe}.xlsx"));
@@ -2103,7 +2126,7 @@ public class StyreWebExport : HavneData
 		return this;
 	}
 
-	private List<(string, string)> LesGruppe(string gruppe)
+	public override List<(string, string)> LesGruppe(string gruppe)
 	{
 		var gruppeFil = Path.Combine(swExportFolder, $"Gruppe{gruppe}.csv");
 		var medlemmer = new List<(string, string)>();   // (Navn, gruppe)
