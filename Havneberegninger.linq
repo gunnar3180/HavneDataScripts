@@ -49,11 +49,11 @@ void Main(string[] args)
 	//	.ToList()
 	//	.ForEach(e => VisAlledata(new StyreWebExport().LesData(e.ToString()), true, @"C:\MyLocal\Solviken\Rapporter"));
 
-	//VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste);
-	//if (path != null)
-	//{
-	//	VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste, path);
-	//}
+	VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste);
+	if (path != null)
+	{
+		VisAlleData(new StyreWebExport().LesData(prefix, fromDate), bryggeliste, path);
+	}
 
 	//VisAlledata(new ExcelExport().LesData(), bryggeliste);
 	//VisAlledata(new HavneWebExport().LesData(), bryggeliste);
@@ -67,7 +67,7 @@ void Main(string[] args)
 	//VisArealForskjeller(new HavneWebExport().LesData("6"), new StyreWebExport().LesData("6"));
 	//VisVaktFritak(new HavneWebExport().LesData());
 	//BeregnBatplassAvgifter(new StyreWebExport().LesData());
-	VisAlleMedVaktplikt_2026(new StyreWebExport().LesData());
+	//VisAlleMedVaktplikt_2026(new StyreWebExport().LesData());
 	//VisLedigePlasser(new StyreWebExport().LesData());
 	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData(fromDate: "31.08.2025"));
 	//VisAlleMedVaktfritakOgPlasser(new StyreWebExport().LesData());
@@ -724,19 +724,21 @@ void VisAlleMedVaktplikt_2026(HavneData havn)
 		Console.WriteLine(plass.Bruker);
 	}
 
+	// Singelvakter fram tom. 15/8. Hvor lenge kan vi kjøre dobbeltvakter etter det?
+	
 	// Hvor mange dager fra 15/5 tom. 15/10?
 	var start = new DateTime(2026, 5, 15);
-	var end = new DateTime(2026, 10, 15);
-	int vaktliste2Dager = (end - start).Days + 1;   // +1 to include both 15 May and 15 Oct
-	int dobbeltvakter = antallPliktige - vaktliste2Dager;
-	int singelvakter = vaktliste2Dager - dobbeltvakter;
-	var sisteSingelvakt = start.AddDays(singelvakter - 1);
+	var endSingel = new DateTime(2026, 8, 15);
+	int singelvakter = (endSingel - start).Days + 1;
+	int dobbeltvakter = antallPliktige - singelvakter;
+	int antallDobbeltvalktDager = dobbeltvakter / 2;
+	var sisteVaktDag = endSingel.AddDays(antallDobbeltvalktDager);
 
-	Console.WriteLine($"\nAntall dager fom. 15. mai tom. 15. oktober: {vaktliste2Dager}");
-	Console.WriteLine($"Antall vaktpliktige: {antallPliktige}");
+	//Console.WriteLine($"\nAntall dager fom. 15. mai tom. 15. oktober: {vaktliste2Dager}");
+	Console.WriteLine($"\nAntall vaktpliktige: {antallPliktige}");
+	Console.WriteLine($"Antall singelvakter tom. 15/8: {singelvakter}");
 	Console.WriteLine($"Antall dobbeltvakter: {dobbeltvakter}");
-	Console.WriteLine($"Antall singelvakter: {singelvakter}");
-	Console.WriteLine($"Siste singelvakt: {sisteSingelvakt.ToString("dd.MM.yyyy")}");
+	Console.WriteLine($"Siste vakt: {sisteVaktDag.ToString("dd.MM.yyyy")}");
 }
 
 void BeregnBatplassAvgifter(HavneData havneData)
@@ -987,7 +989,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	var feil = SjekkForFeil(dataSet, innskuddVenteliste, ledigePlasser);
 	if (feil.Count > 0)
 	{
-		Console.WriteLine("\n+ Feil i båtplassdata");
+		Console.WriteLine("\n+Feil i båtplassdata");
 		feil.ForEach(f => Console.WriteLine(f));
 	}
 	Console.WriteLine("-");
@@ -1123,9 +1125,10 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 		var plassId = innskudd.PlassId;
 		var kroner = innskudd.Innskudd;
 		total += kroner;
-		var solgt = dataSet.GetBatPlass(innskudd.PlassId).AndelsPlass;
+		var batPlass = dataSet.GetBatPlass(innskudd.PlassId);
+		var solgt = batPlass != null ? batPlass.AndelsPlass : false;
 		var utbetales = innskudd.Utbetales;
-		
+
 		Console.WriteLine($"{navn,-25} {plassId} {kroner,10}        {(solgt ? "J" : "N")}       {(innskudd.Utbetales ? "J" : "N")}");
 	}
 
@@ -2005,8 +2008,7 @@ public class StyreWebExport : HavneData
 					var reservert = (plassType == "Reservert");
 					var tilLeie = (plassType == "Til leie");
 					var landOpplag = (plassType == "Landopplag");
-					var andelsPlass = //((eier != null) && !landOpplag) ||	// Gammel definisjon
-										(plassType == "Andelsplass") || framleiePlass || lanePlass || tilLeie;
+					var andelsPlass = ((plassType == "Andelsplass") || framleiePlass || lanePlass || tilLeie) && eier != null;
 
 					int innskuddKr = 0;
 					if (innskudd.Length > 0)
@@ -2101,6 +2103,11 @@ public class StyreWebExport : HavneData
 		var sesongplasser = GetSesongPlasser();
 		var pliktigePlasser = andelsplasser.Concat(sesongplasser).OrderBy(a => a.PlassId);
 		var pliktige = pliktigePlasser.Select(p => p.Bruker).Distinct();
+		var nullBruker = pliktigePlasser.FirstOrDefault(p => p.Bruker == null);
+		if (nullBruker != null)
+		{
+			
+		}
 		var fritak = pliktigePlasser.Where(p => kjenteFritak.TryGetValue(p.Bruker, out var foo));
 		
 		foreach (var plass in fritak)
