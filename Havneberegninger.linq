@@ -1168,6 +1168,7 @@ void PrintLandopplag(HavneData dataSet)
 List<string> SjekkForFeil(HavneData dataSet, List<InnskuddEier> innskuddVenteliste, List<BatPlass> ledigePlasser)
 {
 	var result = new List<string>();
+	result.AddRange(dataSet.FeilListe);
 	foreach (var plass in dataSet.GetAlleBryggePlasser())
 	{
 		if (plass.Eier == null && (plass.AndelsPlass || plass.SesongPlass || plass.JollePlass))
@@ -1665,6 +1666,8 @@ public abstract class HavneData
 	
 	public abstract string Navn { get; }
 	
+	public List<string> FeilListe { get; } = new List<string>();
+	
 	public DateTime TimeStamp { get; set; }
 	
 	public string PlassPrefix { get; set; }
@@ -2000,7 +2003,7 @@ public class StyreWebExport : HavneData
 						lengdeCm = (int)Math.Round(lengde * 100);
 					}
 
-					var sesongPlass = (plassType == "Sesongplass");
+					var sesongPlass = (plassType == "Sesongplass") && eier != null;
 					var framleiePlass = (plassType == "Framleie");
 					var ungdomsPlass = (plassType == "Ungdomsplass");		// Denne skal vekk i 2026
 					var jollePlass = (plassType == "Jolleplass");
@@ -2009,6 +2012,24 @@ public class StyreWebExport : HavneData
 					var tilLeie = (plassType == "Til leie");
 					var landOpplag = (plassType == "Landopplag");
 					var andelsPlass = ((plassType == "Andelsplass") || framleiePlass || lanePlass || tilLeie) && eier != null;
+
+					if (plassType == "Sesongplass"
+					  || plassType == "Framleie"
+					  || plassType == "Jolleplass"
+					  || plassType == "Låneplass"
+					  || plassType == "Til leie"
+					  || plassType == "Andelsplass")
+					{
+					  	if (eier == null)
+						{
+							FeilListe.Add($"{plassId}: {plassType} uten bruker");
+						}
+						
+						if (bredde == 0)
+						{
+							FeilListe.Add($"{plassId}: {plassType} bredde = 0");
+						}
+					}
 
 					int innskuddKr = 0;
 					if (innskudd.Length > 0)
@@ -2192,7 +2213,8 @@ public class StyreWebExport : HavneData
 					var dato = fields[10];
 					if (!ParseDate(dato, out var fraTid))
 					{
-						Console.WriteLine($"Søker {navn} har ugyldig starttid {dato}");
+						FeilListe.Add($"Søker {navn} har ugyldig starttid {dato}");
+						//Console.WriteLine($"Søker {navn} har ugyldig starttid {dato}");
 						continue;
 					}
 
@@ -2200,7 +2222,8 @@ public class StyreWebExport : HavneData
 					var felt = kommentar.Split(';', '/');
 					if (felt.Length != 6)
 					{
-						Console.WriteLine($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
+						FeilListe.Add($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
+						//Console.WriteLine($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
 						continue;
 					}
 
@@ -2255,7 +2278,8 @@ public class StyreWebExport : HavneData
 					var felt = kommentar.Split(';', '/');
 					if (felt.Length != 3)
 					{
-						Console.WriteLine($"Innskuddeier {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
+						FeilListe.Add($"Innskuddeier {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
+						//Console.WriteLine($"Innskuddeier {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
 						continue;
 					}
 
