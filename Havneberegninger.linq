@@ -1337,7 +1337,8 @@ void PublishStatus(string file, bool collapse = false)
 			{
 				if (collapse)
 				{
-					writer.WriteLine("<details>");
+					var open = line.StartsWith("+Feil") ? " open" : string.Empty;
+					writer.WriteLine($"<details{open}>");
 					writer.WriteLine($"  <summary>{line.Substring(1)}</summary>");
 					writer.WriteLine("  <pre>");
 				}
