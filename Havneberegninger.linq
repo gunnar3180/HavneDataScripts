@@ -1198,7 +1198,7 @@ List<string> SjekkForFeil(HavneData dataSet, List<InnskuddEier> innskuddVentelis
 		// Sjekk om eier av plass er merket som sluttet
 		if (plass.Eier != null && plass.Eier.Contains("Sluttet"))
 		{
-			result.Add($"{plass.PlassId}: Eier er merket som sluttet i medlemsregisteret");
+			result.Add($"{plass.PlassId}: Eier {plass.Eier.Substring(0, plass.Eier.Length - 10)} er merket som sluttet i medlemsregisteret");
 		}
 
 		if (plass.TilLeie && plass.Eier == null)
