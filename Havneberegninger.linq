@@ -1136,7 +1136,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 	Console.WriteLine("-");
 
 	PrintVentelister(batplassVenteListe, andelsplasser);
-	PrintLandopplag(dataSet);
+	//PrintLandopplag(dataSet);
 	VisAlleMedVaktfritakOgPlasser(dataSet);
 	
 	string venteListeFil = null;
@@ -1200,7 +1200,7 @@ List<string> SjekkForFeil(HavneData dataSet, List<InnskuddEier> innskuddVentelis
 		{
 			result.Add($"{plass.PlassId}: Eier {plass.Eier.Substring(0, plass.Eier.Length - 10)} er merket som sluttet i medlemsregisteret");
 		}
-
+		
 		if (plass.TilLeie && plass.Eier == null)
 		{
 			result.Add($"{plass.PlassId}: Plassen er merket til leie, men har ingen eier");
@@ -2221,7 +2221,7 @@ public class StyreWebExport : HavneData
 
 					var kommentar = fields[12].Trim('"');
 					var felt = kommentar.Split(';', '/');
-					if (felt.Length != 6)
+					if (felt.Length < 5)
 					{
 						FeilListe.Add($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
 						//Console.WriteLine($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
@@ -2238,7 +2238,7 @@ public class StyreWebExport : HavneData
 							Seilbat = (felt[2] == "S"),
 							Bredde = double.Parse(felt[3]),
 							Lengde = double.Parse(felt[4]),
-							BatType = felt[5]
+							BatType = felt.Length == 6 ? felt[5] : "Ukjent båttype"
 						}
 					);
 				}
