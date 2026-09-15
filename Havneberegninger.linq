@@ -986,7 +986,7 @@ void VisAlleData(HavneData dataSet, bool bryggeliste = true, string file = null)
 		Console.WriteLine();
 	}
 
-	var feil = SjekkForFeil(dataSet, innskuddVenteliste, ledigePlasser);
+	var feil = SjekkForFeil(dataSet, innskuddVenteliste, ledigePlasser, medlemsRegister);
 	if (feil.Count > 0)
 	{
 		Console.WriteLine("\n+Feil i båtplassdata");
@@ -1165,7 +1165,7 @@ void PrintLandopplag(HavneData dataSet)
 	Console.WriteLine("-");
 }
 
-List<string> SjekkForFeil(HavneData dataSet, List<InnskuddEier> innskuddVenteliste, List<BatPlass> ledigePlasser)
+List<string> SjekkForFeil(HavneData dataSet, List<InnskuddEier> innskuddVenteliste, List<BatPlass> ledigePlasser, MedlemsRegister medlemsRegister)
 {
 	var result = new List<string>();
 	result.AddRange(dataSet.FeilListe);
@@ -1186,21 +1186,32 @@ List<string> SjekkForFeil(HavneData dataSet, List<InnskuddEier> innskuddVentelis
 		}
 
 		// Sjekk framleieplasser
-		if (plass.FramleiePlass && (plass.Eier == null || plass.Leier == null))
+		if (plass.FramleiePlass)
 		{
-			result.Add($"{plass.PlassId}: Framleieplass med feil i eier eller leietaker");
+			if (plass.Eier == null)
+			{
+				result.Add($"{plass.PlassId}: Framleieplass uten eier");
+			}
+			else if (medlemsRegister.HarSluttet(plass.Eier))
+			{
+				result.Add($"{plass.PlassId}: Framleieplass hvor eier {plass.Eier} har sluttet");
+			}
+
+			if (plass.Leier == null)
+			{
+				result.Add($"{plass.PlassId}: Framleieplass (eid av {plass.Eier}) uten leietaker");
+			}
+			else if (medlemsRegister.HarSluttet(plass.Leier))
+			{
+				result.Add($"{plass.PlassId}: Framleieplass hvor leietaker {plass.Leier} har sluttet");
+			}
 		}
-		else if (plass.Eier != null && plass.Leier != null && !plass.FramleiePlass)
+		
+		if (plass.Eier != null && plass.Leier != null && !plass.FramleiePlass)
 		{
 			result.Add($"{plass.PlassId}: Framleid plass, men ikke merker med \"Framleie\"");
 		}
 
-		// Sjekk om eier av plass er merket som sluttet
-		if (plass.Eier != null && plass.Eier.Contains("Sluttet"))
-		{
-			result.Add($"{plass.PlassId}: Eier {plass.Eier.Substring(0, plass.Eier.Length - 10)} er merket som sluttet i medlemsregisteret");
-		}
-		
 		if (plass.TilLeie && plass.Eier == null)
 		{
 			result.Add($"{plass.PlassId}: Plassen er merket til leie, men har ingen eier");
@@ -2677,6 +2688,21 @@ public class MedlemsRegister
 		}
 		
 		return this;
+	}
+	
+	public bool HarSluttet(string navn)
+	{
+		if (navn.Contains("Sluttet"))
+		{
+			return true;
+		}
+		
+		if (Medlemmer.TryGetValue(navn, out var medlem))
+		{
+			return medlem.Navn.Contains("Sluttet");
+		}
+		
+		return true;
 	}
 
 	private void CopyNewerFile(string source, string destination)
