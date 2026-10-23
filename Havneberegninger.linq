@@ -2234,24 +2234,31 @@ public class StyreWebExport : HavneData
 					var felt = kommentar.Split(';', '/');
 					if (felt.Length < 5)
 					{
-						FeilListe.Add($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
+						FeilListe.Add($"Venteliste: {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
 						//Console.WriteLine($"Søker {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
 						continue;
 					}
 
-					sokere.Add(
-						new PlassSoker
-						{
-							Navn = navn,
-							FraTid = fraTid,
-							PlassType = GetPlassType(felt[0], felt[1]),
-							PlassId = GetPlassId(felt[1]),
-							Seilbat = (felt[2] == "S"),
-							Bredde = double.Parse(felt[3]),
-							Lengde = double.Parse(felt[4]),
-							BatType = felt.Length == 6 ? felt[5] : "Ukjent båttype"
-						}
-					);
+					try
+					{
+						sokere.Add(
+							new PlassSoker
+							{
+								Navn = navn,
+								FraTid = fraTid,
+								PlassType = GetPlassType(felt[0], felt[1]),
+								PlassId = GetPlassId(felt[1]),
+								Seilbat = (felt[2] == "S"),
+								Bredde = double.Parse(felt[3]),
+								Lengde = double.Parse(felt[4]),
+								BatType = felt.Length == 6 ? felt[5] : "Ukjent båttype"
+							}
+						);
+					}
+					catch (Exception ex)
+					{
+						FeilListe.Add($"Venteliste: {navn} har ugyldig beskrivelse (\"kommentar\") {kommentar}");
+					}
 				}
 			}
 		}
